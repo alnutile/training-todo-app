@@ -19,6 +19,40 @@ npm run build    # type-check + production build into dist/
 npm start        # serve the built dist/ on $PORT (used by Railway)
 ```
 
+## Authentication (Step 3 — real accounts)
+
+The app gates the board behind a Supabase session. Logged-out visitors (incl.
+incognito) see the login screen; logged-in users see only their own todos.
+Sign-in options: **email + password** and **passwordless magic link**.
+
+### One-time Supabase dashboard setup
+
+These are auth settings (no API/migration for them) — set them once in the
+[`training-todo-app` dashboard](https://supabase.com/dashboard/project/torocnrxwdepeceouzpe):
+
+1. **Authentication → Sign In / Providers**
+   - **Email**: enabled. Turn **"Confirm email" OFF** (no verification step — see
+     note below). Magic links work automatically once Email is enabled.
+   - **"Allow anonymous sign-ins": OFF** (Step 2 used this; Step 3 removes it).
+2. **Authentication → URL Configuration**
+   - **Site URL**: your production URL, e.g. `https://<app>.up.railway.app`
+   - **Redirect URLs** — add BOTH so magic links + post-login redirects work in
+     dev and prod:
+     - `http://localhost:5173/**`
+     - `https://<app>.up.railway.app/**` (and any custom domain, e.g.
+       `https://todo.example.com/**`)
+
+> **Note — email confirmation is off on purpose** for a simple demo: anyone can
+> register and is signed in immediately. You can tighten this later — turn
+> "Confirm email" back on, or go invite-only — without code changes.
+
+### Why both dev and prod redirect URLs?
+
+Magic links and the post-login redirect send the user back to
+`window.location.origin`. That origin **must** be in the Redirect URLs list or
+Supabase rejects the redirect. Listing both `localhost` and the Railway domain
+means the same build works in both places.
+
 ## Database & migrations
 
 The Supabase schema lives in [`supabase/migrations/`](supabase/migrations/) and
