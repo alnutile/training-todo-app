@@ -14,41 +14,117 @@ body {
 }
 
 .app {
-  max-width: 32rem;
+  max-width: 80rem;
   margin: 0 auto;
-  padding: 3rem 1.25rem 4rem;
+  padding: 2.5rem 1.25rem 4rem;
 }
 
 h1 {
   font-size: 2rem;
-  margin: 0 0 1.5rem;
+  margin: 0 0 1.25rem;
 }
 
-.add-form {
+.muted {
+  color: #6b7280;
+}
+
+.error {
+  color: #b42318;
+  background: #fef3f2;
+  border: 1px solid #fecdca;
+  padding: 0.6rem 0.85rem;
+  border-radius: 8px;
+}
+
+/* Board: four lanes side by side, wrapping on small screens */
+.board {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+@media (max-width: 800px) {
+  .board {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .board {
+    grid-template-columns: 1fr;
+  }
+}
+
+.lane {
+  background: #eef0f4;
+  border: 1px solid #e2e5ea;
+  border-radius: 12px;
+  padding: 0.85rem;
   display: flex;
-  gap: 0.5rem;
-  margin-bottom: 1.5rem;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-height: 8rem;
+  transition: background 0.12s, border-color 0.12s;
 }
 
-.add-form input {
+.lane--over {
+  background: #e4ecff;
+  border-color: #4f7cff;
+}
+
+.lane-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.lane-header h2 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #4b5160;
+  margin: 0;
+}
+
+.lane-count {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #6b7280;
+  background: #fff;
+  border-radius: 999px;
+  padding: 0.05rem 0.5rem;
+  min-width: 1.5rem;
+  text-align: center;
+}
+
+.lane-add {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.lane-add input {
   flex: 1;
-  padding: 0.6rem 0.75rem;
-  font-size: 1rem;
+  min-width: 0;
+  padding: 0.5rem 0.6rem;
+  font-size: 0.9rem;
   border: 1px solid #ccd0d9;
   border-radius: 8px;
   background: #fff;
 }
 
-.add-form input:focus {
+.lane-add input:focus {
   outline: 2px solid #4f7cff;
   outline-offset: 1px;
   border-color: #4f7cff;
 }
 
-.add-form button {
-  padding: 0.6rem 1.1rem;
-  font-size: 1rem;
-  font-weight: 600;
+.lane-add button {
+  flex: 0 0 auto;
+  width: 2.1rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1;
   color: #fff;
   background: #4f7cff;
   border: none;
@@ -56,62 +132,55 @@ h1 {
   cursor: pointer;
 }
 
-.add-form button:hover {
+.lane-add button:hover {
   background: #3d68e6;
 }
 
-.empty {
-  color: #6b7280;
-}
-
-.todo-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+.lane-cards {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  min-height: 2rem;
 }
 
-.todo-item {
+.card {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.65rem 0.85rem;
+  align-items: flex-start;
+  gap: 0.5rem;
   background: #fff;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
+  padding: 0.6rem 0.7rem;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+  cursor: grab;
 }
 
-.todo-label {
+.card:active {
+  cursor: grabbing;
+}
+
+.card-title {
   flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-  cursor: pointer;
+  font-size: 0.92rem;
+  word-break: break-word;
 }
 
-.todo-label input {
-  width: 1.1rem;
-  height: 1.1rem;
-  cursor: pointer;
-}
-
-.todo-label .done {
+.card-title.done {
   text-decoration: line-through;
   color: #9aa0ab;
 }
 
-.delete {
-  font-size: 1.25rem;
+.card-delete {
+  flex: 0 0 auto;
+  font-size: 1.1rem;
   line-height: 1;
-  color: #9aa0ab;
+  color: #c1c6cf;
   background: none;
   border: none;
   cursor: pointer;
-  padding: 0 0.25rem;
+  padding: 0;
 }
 
-.delete:hover {
+.card-delete:hover {
   color: #e5484d;
 }

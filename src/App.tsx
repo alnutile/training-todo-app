@@ -1,105 +1,176 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { supabase } from './lib/supabase'
+import { LANES, type Status, type Todo } from './types'
+import { Lane } from './components/Lane'
 
-type Todo = {
-  id: string
-  title: string
-  done: boolean
-}
+export default function App() {
+  const [userId, setUserId] = useState<string | null>(null)
+  const [todos, setTodos] = useState<Todo[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-const STORAGE_KEY = 'training-todo-app.todos'
-
-function loadTodos(): Todo[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return []
-    const parsed = JSON.parse(raw)
-    if (!Array.isArray(parsed)) return []
-    // Keep only well-formed items so a bad localStorage value can't crash us.
-    return parsed.filter(
-      (t): t is Todo =>
-        t &&
-        typeof t.id === 'string' &&
-        typeof t.title === 'string' &&
-        typeof t.done === 'boolean',
-    )
-  } catch {
-    return []
-  }
-}
-
-function App() {
-  const [todos, setTodos] = useState<Todo[]>(loadTodos)
-  const [title, setTitle] = useState('')
-
-  // Persist on every change so a refresh keeps the list.
+  // --- Anonymous auth: get a session automatically, no login UI (Step 2) ---
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(todos))
-  }, [todos])
+    let active = true
+    async function ensureSession() {
+      const { data } = await supabase.auth.getSession()
+      if (data.session) {
+        if (active) setUserId(data.session.user.id)
+        return
+      }
+      const { data: anon, error: signInError } =
+        await supabase.auth.signInAnonymously()
+      if (signInError) {
+        if (active) setError(signInError.message)
+        return
+      }
+      if (active && anon.user) setUserId(anon.user.id)
+    }
+    ensureSession()
+    return () => {
+      active = false
+    }
+  }, [])
 
-  function addTodo(e: FormEvent) {
-    e.preventDefault()
-    const trimmed = title.trim()
-    if (!trimmed) return
-    setTodos((prev) => [
-      ...prev,
-      { id: crypto.randomUUID(), title: trimmed, done: false },
-    ])
-    setTitle('')
-  }
+  // --- Load todos once we have a user ---
+  useEffect(() => {
+    if (!userId) return
+    let active = true
+    async function load() {
+      const { data, error: loadError } = await supabase
+        .from('todos')
+        .select('*')
+        .order('position', { ascending: true })
+      if (!active) return
+      if (loadError) {
+        setError(loadError.message)
+      } else {
+        setTodos(data ?? [])
+      }
+      setLoading(false)
+    }
+    load()
+    return () => {
+      active = false
+    }
+  }, [userId])
 
-  function toggleTodo(id: string) {
-    setTodos((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, done: !t.done } : t)),
-    )
-  }
+  // --- Realtime: reconcile changes from other tabs/sessions ---
+  useEffect(() => {
+    if (!userId) return
+    const channel = supabase
+      .channel('todos-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'todos',
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          setTodos((prev) => {
+            if (payload.eventType === 'INSERT') {
+              const row = payload.new as Todo
+              if (prev.some((t) => t.id === row.id)) return prev
+              return [...prev, row]
+            }
+            if (payload.eventType === 'UPDATE') {
+              const row = payload.new as Todo
+              return prev.map((t) => (t.id === row.id ? row : t))
+            }
+            if (payload.eventType === 'DELETE') {
+              const oldRow = payload.old as Partial<Todo>
+              return prev.filter((t) => t.id !== oldRow.id)
+            }
+            return prev
+          })
+        },
+      )
+      .subscribe()
 
-  function deleteTodo(id: string) {
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [userId])
+
+  // Next position = end of the target lane.
+  const nextPosition = useCallback(
+    (status: Status) => {
+      const inLane = todos.filter((t) => t.status === status)
+      if (inLane.length === 0) return 1
+      return Math.max(...inLane.map((t) => t.position)) + 1
+    },
+    [todos],
+  )
+
+  const addTodo = useCallback(
+    async (status: Status, title: string) => {
+      const trimmed = title.trim()
+      if (!trimmed || !userId) return
+      const { error: insertError } = await supabase.from('todos').insert({
+        title: trimmed,
+        status,
+        position: nextPosition(status),
+        // user_id defaults to auth.uid() in the DB, but set it so the
+        // optimistic realtime path and RLS check line up explicitly.
+        user_id: userId,
+      })
+      if (insertError) setError(insertError.message)
+      // Realtime INSERT event adds it to state.
+    },
+    [userId, nextPosition],
+  )
+
+  const moveTodo = useCallback(
+    async (id: string, status: Status) => {
+      const todo = todos.find((t) => t.id === id)
+      if (!todo || todo.status === status) return
+      const position = nextPosition(status)
+      // Optimistic update; realtime reconciles to the persisted row.
+      setTodos((prev) =>
+        prev.map((t) => (t.id === id ? { ...t, status, position } : t)),
+      )
+      const { error: updateError } = await supabase
+        .from('todos')
+        .update({ status, position })
+        .eq('id', id)
+      if (updateError) setError(updateError.message)
+    },
+    [todos, nextPosition],
+  )
+
+  const deleteTodo = useCallback(async (id: string) => {
     setTodos((prev) => prev.filter((t) => t.id !== id))
-  }
+    const { error: deleteError } = await supabase
+      .from('todos')
+      .delete()
+      .eq('id', id)
+    if (deleteError) setError(deleteError.message)
+  }, [])
 
   return (
     <main className="app">
       <h1>To-Do</h1>
 
-      <form className="add-form" onSubmit={addTodo}>
-        <input
-          type="text"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Add a task…"
-          aria-label="Task title"
-        />
-        <button type="submit">Add</button>
-      </form>
+      {error && <p className="error">⚠ {error}</p>}
+      {loading && !error && <p className="muted">Loading…</p>}
 
-      {todos.length === 0 ? (
-        <p className="empty">No tasks yet. Add one above.</p>
-      ) : (
-        <ul className="todo-list">
-          {todos.map((todo) => (
-            <li key={todo.id} className="todo-item">
-              <label className="todo-label">
-                <input
-                  type="checkbox"
-                  checked={todo.done}
-                  onChange={() => toggleTodo(todo.id)}
-                />
-                <span className={todo.done ? 'done' : ''}>{todo.title}</span>
-              </label>
-              <button
-                type="button"
-                className="delete"
-                onClick={() => deleteTodo(todo.id)}
-                aria-label={`Delete ${todo.title}`}
-              >
-                ×
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+      <div className="board">
+        {LANES.map((lane) => (
+          <Lane
+            key={lane.status}
+            status={lane.status}
+            label={lane.label}
+            todos={todos
+              .filter((t) => t.status === lane.status)
+              .sort((a, b) => a.position - b.position)}
+            onAdd={addTodo}
+            onMove={moveTodo}
+            onDelete={deleteTodo}
+          />
+        ))}
+      </div>
     </main>
   )
 }
-
-export default App
