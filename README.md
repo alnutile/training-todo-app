@@ -19,6 +19,34 @@ npm run build    # type-check + production build into dist/
 npm start        # serve the built dist/ on $PORT (used by Railway)
 ```
 
+## Database & migrations
+
+The Supabase schema lives in [`supabase/migrations/`](supabase/migrations/) and
+is applied by a GitHub Actions workflow
+([`.github/workflows/supabase-migrations.yml`](.github/workflows/supabase-migrations.yml))
+on every push to `main` that touches a migration. `supabase db push` only runs
+versions the project hasn't recorded yet, so re-runs are safe.
+
+Add these in **GitHub → repo Settings → Secrets and variables → Actions**:
+
+| Secret                  | Where to get it                                                                 |
+|-------------------------|---------------------------------------------------------------------------------|
+| `SUPABASE_ACCESS_TOKEN` | [Account → Access Tokens](https://supabase.com/dashboard/account/tokens)        |
+| `SUPABASE_DB_PASSWORD`  | Project → Settings → Database → the database password you set at project create |
+
+The project ref (`torocnrxwdepeceouzpe`) is public and hardcoded in the workflow.
+
+## Frontend env vars (Railway + local)
+
+Only `VITE_`-prefixed, **public** values:
+
+| Var                     | Value                                                  |
+|-------------------------|--------------------------------------------------------|
+| `VITE_SUPABASE_URL`     | `https://torocnrxwdepeceouzpe.supabase.co`             |
+| `VITE_SUPABASE_ANON_KEY`| the project's anon/publishable key (`sb_publishable_…`)|
+
+Never put the `service_role` key in a `VITE_` var or in git.
+
 ## Deploy to Railway (first-time, click-by-click)
 
 **1. Create the GitHub repo and push**
