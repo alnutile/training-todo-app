@@ -1,0 +1,21 @@
+{
+  "name": "training-todo-sync-agent",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Per-user agent that syncs Google Tasks into the todos table.",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env --import tsx sync.ts",
+    "sync": "node --env-file-if-exists=.env --import tsx sync.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.108.2",
+    "@zapier/zapier-sdk": "^0.80.2",
+    "tsx": "^4.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.0",
+    "typescript": "^5.9.3"
+  }
+}

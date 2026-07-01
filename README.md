@@ -115,6 +115,70 @@ Every push to `main` redeploys automatically.
 
 ---
 
+## Google Tasks sync agent (Step 5)
+
+[`agents/`](agents/) is a **separate, server-side deployable** that pulls the
+target user's **Google Tasks** into the `todos` table via the Zapier SDK, so a
+task made on your phone shows up on the board. It's a per-user agent — it reads
+one Google Tasks connection and writes rows for one `SYNC_TARGET_USER_ID`.
+
+**How it works**
+- Reads every task list + task (incl. completed) via the Zapier SDK
+  (`GoogleTasksCLIAPI` → `list_task_lists`, then `get_tasks_by_list` with
+  `show_completed: true`).
+- Status map: Google `needsAction` → `backlog`, `completed` → `done`.
+- Upserts by `external_id` (the Google Task id) via the
+  `sync_external_todos` SQL function, so repeat runs **update** title/status
+  instead of creating duplicates. It only adds/updates — tasks deleted in
+  Google are left on the board (out of scope).
+
+**Security (per CLAUDE.md)**
+- The agent talks to Supabase with the **`service_role`** key
+  (`SUPABASE_SERVICE_ROLE_KEY`) — server-only, never a `VITE_` var, never
+  committed. `service_role` bypasses RLS, so the agent sets `user_id` explicitly
+  to `SYNC_TARGET_USER_ID` on every row.
+- **Multi-user = one agent per person:** each person runs their own agent with
+  their own `SYNC_TARGET_USER_ID` and their own Google Tasks connection. There
+  is no shared multi-tenant bot.
+
+### Run it manually (the demo)
+
+```bash
+cd agents
+cp .env.example .env      # fill in the real values (see below), .env is gitignored
+npm install
+npm start                 # reads Google Tasks, upserts, prints rows affected
+```
+
+`agents/.env` for the demo:
+
+| Var | Value |
+|---|---|
+| `SUPABASE_URL` | `https://torocnrxwdepeceouzpe.supabase.co` |
+| `SUPABASE_SERVICE_ROLE_KEY` | Project → Settings → API → `service_role` (secret) |
+| `SYNC_TARGET_USER_ID` | your account's `auth.users` UUID |
+| `GOOGLE_TASKS_CONNECTION_ID` | `020d862a-636a-86a8-bfc3-14fe4795af8f` |
+
+Locally the Zapier SDK uses the token from `zapier-sdk login`, so you don't need
+the `ZAPIER_CREDENTIALS_*` vars. Then reload the board — your Google Tasks appear
+(and thanks to realtime, they pop in live).
+
+### Deploy as a second Railway service (hourly cron)
+
+The agent is its own service, separate from the web app:
+
+1. In your Railway **project** → **New** → **GitHub Repo** → same repo.
+2. Open the new service → **Settings** → **Root Directory** = `agents`. It picks
+   up [`agents/railway.json`](agents/railway.json): build with Nixpacks, start
+   with `npm start`, **cron `0 * * * *`** (hourly), restart policy `NEVER` (a
+   cron job runs once and exits).
+3. Set the service's **Variables** — the four above **plus** the Zapier server
+   credentials (no CLI token on Railway):
+   - `ZAPIER_CREDENTIALS_CLIENT_ID`, `ZAPIER_CREDENTIALS_CLIENT_SECRET` — create
+     with `npx zapier-sdk create-client-credentials`.
+4. Deploy. It runs every hour, and you can hit **Deploy/Run** to trigger it
+   on demand for the demo.
+
 # Vibe Coding With Confidence — starter rules
 
 These are the "opinion" files from the post **Vibe Coding With Confidence**. They
