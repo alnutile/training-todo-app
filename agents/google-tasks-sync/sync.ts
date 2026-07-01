@@ -17,10 +17,7 @@ import { createZapierSdk } from '@zapier/zapier-sdk'
 
 function requireEnv(name: string): string {
   const value = process.env[name]
-  if (!value) {
-    console.error(`Missing required env var: ${name}`)
-    process.exit(1)
-  }
+  if (!value) throw new Error(`Missing required env var: ${name}`)
   return value
 }
 
@@ -73,22 +70,29 @@ async function readAllGoogleTasks(): Promise<GoogleTask[]> {
   const tasks: GoogleTask[] = []
   for (const list of lists) {
     if (!list.id) continue
-    for await (const item of zapier
-      .runAction({
-        app: APP,
-        ...GET_TASKS_BY_LIST,
-        connection: CONNECTION_ID,
-        inputs: { task_list: list.id, show_completed: true },
-      })
-      .items()) {
-      // get_tasks_by_list returns line-item results: { tasks: [...] }.
-      const record = item as { tasks?: GoogleTask[] } & GoogleTask
-      const inner = Array.isArray(record.tasks) ? record.tasks : [record]
-      for (const t of inner) {
-        if (t && typeof t.id === 'string') {
-          tasks.push({ id: t.id, title: t.title, status: t.status, updated: t.updated })
+    const label = list.title ?? list.id
+    try {
+      for await (const item of zapier
+        .runAction({
+          app: APP,
+          ...GET_TASKS_BY_LIST,
+          connection: CONNECTION_ID,
+          inputs: { task_list: list.id, show_completed: true },
+        })
+        .items()) {
+        // get_tasks_by_list returns line-item results: { tasks: [...] }.
+        const record = item as { tasks?: GoogleTask[] } & GoogleTask
+        const inner = Array.isArray(record.tasks) ? record.tasks : [record]
+        for (const t of inner) {
+          if (t && typeof t.id === 'string') {
+            tasks.push({ id: t.id, title: t.title, status: t.status, updated: t.updated })
+          }
         }
       }
+    } catch (err) {
+      // One bad list shouldn't abort the whole sync — log which one and move on.
+      const message = err instanceof Error ? err.message : String(err)
+      console.error(`  ! Skipped list "${label}": ${message}`)
     }
   }
   return tasks
@@ -134,14 +138,15 @@ async function main() {
     p_user_id: TARGET_USER_ID,
     p_tasks: rows,
   })
-  if (error) {
-    console.error('Upsert failed:', error.message)
-    process.exit(1)
-  }
+  if (error) throw new Error(`Upsert failed: ${error.message}`)
   console.log(`✓ Sync complete. Rows inserted/updated: ${data}`)
 }
 
-main().catch((err) => {
-  console.error('Agent failed:', err)
-  process.exit(1)
-})
+// Top-level await + exitCode (not process.exit) so stdout/stderr fully flush —
+// process.exit() can truncate buffered logs and hide the real error on a crash.
+try {
+  await main()
+} catch (err) {
+  console.error('Agent failed:', err instanceof Error ? (err.stack ?? err.message) : String(err))
+  process.exitCode = 1
+}
