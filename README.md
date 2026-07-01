@@ -127,6 +127,8 @@ one Google Tasks connection and writes rows for one `SYNC_TARGET_USER_ID`.
   (`GoogleTasksCLIAPI` → `list_task_lists`, then `get_tasks_by_list` with
   `show_completed: true`).
 - Status map: Google `needsAction` → `backlog`, `completed` → `done`.
+- Syncs the **latest 50** tasks by default (`SYNC_LIMIT`, most-recently-updated
+  first) to keep the demo board tidy; set `SYNC_LIMIT=0` to sync everything.
 - Upserts by `external_id` (the Google Task id) via the
   `sync_external_todos` SQL function, so repeat runs **update** title/status
   instead of creating duplicates. It only adds/updates — tasks deleted in

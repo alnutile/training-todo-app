@@ -29,12 +29,21 @@ const SERVICE_ROLE_KEY = requireEnv('SUPABASE_SERVICE_ROLE_KEY')
 const TARGET_USER_ID = requireEnv('SYNC_TARGET_USER_ID')
 const CONNECTION_ID = requireEnv('GOOGLE_TASKS_CONNECTION_ID')
 
+// Cap how many of the most-recently-updated tasks to sync (keeps the demo board
+// tidy). Default 50; set SYNC_LIMIT=0 to sync everything.
+const SYNC_LIMIT = (() => {
+  const raw = process.env.SYNC_LIMIT
+  if (raw === undefined || raw === '') return 50
+  const n = Number(raw)
+  return Number.isFinite(n) && n >= 0 ? n : 50
+})()
+
 // Discovered via `zapier-sdk list-actions GoogleTasksCLIAPI` (not guessed).
 const APP = 'GoogleTasksCLIAPI'
 const LIST_TASK_LISTS = { actionType: 'read' as const, action: 'list_task_lists' }
 const GET_TASKS_BY_LIST = { actionType: 'search' as const, action: 'get_tasks_by_list' }
 
-type GoogleTask = { id: string; title?: string; status?: string }
+type GoogleTask = { id: string; title?: string; status?: string; updated?: string }
 type SyncRow = { external_id: string; title: string; status: 'backlog' | 'done' }
 
 // Supabase client with the service_role key — server-only, bypasses RLS.
@@ -77,7 +86,7 @@ async function readAllGoogleTasks(): Promise<GoogleTask[]> {
       const inner = Array.isArray(record.tasks) ? record.tasks : [record]
       for (const t of inner) {
         if (t && typeof t.id === 'string') {
-          tasks.push({ id: t.id, title: t.title, status: t.status })
+          tasks.push({ id: t.id, title: t.title, status: t.status, updated: t.updated })
         }
       }
     }
@@ -88,18 +97,32 @@ async function readAllGoogleTasks(): Promise<GoogleTask[]> {
 async function main() {
   const googleTasks = await readAllGoogleTasks()
 
-  // Keep tasks with a real title; dedupe by id (last wins) so a single upsert
-  // payload never hits the same conflict row twice.
-  const byId = new Map<string, SyncRow>()
+  // Keep tasks with a real title; dedupe by id (keep the most recently updated
+  // copy) so a single upsert payload never hits the same conflict row twice.
+  const byId = new Map<string, GoogleTask>()
   for (const t of googleTasks) {
-    const title = (t.title ?? '').trim()
-    if (!title) continue
-    byId.set(t.id, { external_id: t.id, title, status: mapStatus(t.status) })
+    if (!(t.title ?? '').trim()) continue
+    const existing = byId.get(t.id)
+    if (!existing || (t.updated ?? '') > (existing.updated ?? '')) byId.set(t.id, t)
   }
-  const rows = [...byId.values()]
+
+  // Newest first, then cap to SYNC_LIMIT (0 = no cap). `updated` is ISO 8601,
+  // so string compare orders it correctly.
+  let picked = [...byId.values()].sort((a, b) =>
+    (b.updated ?? '').localeCompare(a.updated ?? ''),
+  )
+  const total = picked.length
+  if (SYNC_LIMIT > 0) picked = picked.slice(0, SYNC_LIMIT)
+
+  const rows: SyncRow[] = picked.map((t) => ({
+    external_id: t.id,
+    title: t.title!.trim(),
+    status: mapStatus(t.status),
+  }))
 
   console.log(
-    `Read ${googleTasks.length} task(s); upserting ${rows.length} with titles ` +
+    `Read ${googleTasks.length} task(s); ${total} with titles; upserting the ` +
+      `latest ${rows.length}${SYNC_LIMIT > 0 ? ` (SYNC_LIMIT=${SYNC_LIMIT})` : ' (no cap)'} ` +
       `for user ${TARGET_USER_ID}.`,
   )
   if (rows.length === 0) {
