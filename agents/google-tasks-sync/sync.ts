@@ -12,8 +12,28 @@
  * - Multi-user = each person runs their OWN agent with their own
  *   SYNC_TARGET_USER_ID and their own Google Tasks connection.
  */
+import { writeSync } from 'node:fs'
 import { createClient } from '@supabase/supabase-js'
 import { createZapierSdk } from '@zapier/zapier-sdk'
+
+// Synchronous stdout write — unlike console.log (async to a pipe), this survives
+// an immediate hard kill (e.g. OOM SIGKILL), so progress logs aren't lost.
+function log(msg: string): void {
+  writeSync(1, msg + '\n')
+}
+
+const rssMB = () => `${Math.round(process.memoryUsage().rss / 1048576)}MB`
+
+// Last-resort visibility: if the SDK floats a rejection or throws async, Node
+// would otherwise crash silently. Log it synchronously first.
+process.on('unhandledRejection', (reason) => {
+  log(`unhandledRejection: ${reason instanceof Error ? (reason.stack ?? reason.message) : String(reason)}`)
+  process.exitCode = 1
+})
+process.on('uncaughtException', (err) => {
+  log(`uncaughtException: ${err.stack ?? err.message}`)
+  process.exitCode = 1
+})
 
 function requireEnv(name: string): string {
   const value = process.env[name]
@@ -65,12 +85,15 @@ async function readAllGoogleTasks(): Promise<GoogleTask[]> {
     .items()) {
     lists.push(item as { id?: string; title?: string })
   }
-  console.log(`Found ${lists.length} Google Tasks list(s).`)
+  log(`Found ${lists.length} Google Tasks list(s). (rss ${rssMB()})`)
 
   const tasks: GoogleTask[] = []
-  for (const list of lists) {
+  const withId = lists.filter((l) => l.id)
+  let failed = 0
+  for (const [i, list] of lists.entries()) {
     if (!list.id) continue
     const label = list.title ?? list.id
+    log(`  [${i + 1}/${lists.length}] reading "${label}"… (rss ${rssMB()}, ${tasks.length} so far)`)
     try {
       for await (const item of zapier
         .runAction({
@@ -91,9 +114,22 @@ async function readAllGoogleTasks(): Promise<GoogleTask[]> {
       }
     } catch (err) {
       // One bad list shouldn't abort the whole sync — log which one and move on.
-      const message = err instanceof Error ? err.message : String(err)
-      console.error(`  ! Skipped list "${label}": ${message}`)
+      failed++
+      const message = err instanceof Error ? (err.stack ?? err.message) : String(err)
+      log(`  ! Skipped list "${label}": ${message}`)
     }
+  }
+
+  // Every list denied usually means the Zapier credentials lack the scope to
+  // execute actions — spell out the fix rather than silently syncing nothing.
+  if (withId.length > 0 && failed === withId.length) {
+    log(
+      `All ${failed} list(s) were denied. The Zapier client credentials likely ` +
+        `lack the "external" scope. Recreate them with:\n` +
+        `  npx -p @zapier/zapier-sdk-cli zapier-sdk create-client-credentials ` +
+        `"todo-sync-agent" --allowed-scopes external --json\n` +
+        `then update ZAPIER_CREDENTIALS_CLIENT_ID/SECRET.`,
+    )
   }
   return tasks
 }
@@ -124,13 +160,13 @@ async function main() {
     status: mapStatus(t.status),
   }))
 
-  console.log(
+  log(
     `Read ${googleTasks.length} task(s); ${total} with titles; upserting the ` +
       `latest ${rows.length}${SYNC_LIMIT > 0 ? ` (SYNC_LIMIT=${SYNC_LIMIT})` : ' (no cap)'} ` +
       `for user ${TARGET_USER_ID}.`,
   )
   if (rows.length === 0) {
-    console.log('Nothing to sync.')
+    log('Nothing to sync.')
     return
   }
 
@@ -139,7 +175,7 @@ async function main() {
     p_tasks: rows,
   })
   if (error) throw new Error(`Upsert failed: ${error.message}`)
-  console.log(`✓ Sync complete. Rows inserted/updated: ${data}`)
+  log(`✓ Sync complete. Rows inserted/updated: ${data}`)
 }
 
 // Top-level await + exitCode (not process.exit) so stdout/stderr fully flush —
@@ -147,6 +183,6 @@ async function main() {
 try {
   await main()
 } catch (err) {
-  console.error('Agent failed:', err instanceof Error ? (err.stack ?? err.message) : String(err))
+  log(`Agent failed: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`)
   process.exitCode = 1
 }
