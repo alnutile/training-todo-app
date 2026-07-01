@@ -20,3 +20,7 @@ npm-debug.log*
 
 # TS build info
 *.tsbuildinfo
+
+# Supabase CLI local state
+supabase/.temp
+supabase/.branches
