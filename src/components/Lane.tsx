@@ -5,18 +5,22 @@ import { Card } from './Card'
 type LaneProps = {
   status: Status
   label: string
+  dot: string
   todos: Todo[]
   onAdd: (status: Status, title: string) => void
   onMove: (id: string, status: Status) => void
+  onToggle: (todo: Todo) => void
   onDelete: (id: string) => void
 }
 
 export function Lane({
   status,
   label,
+  dot,
   todos,
   onAdd,
   onMove,
+  onToggle,
   onDelete,
 }: LaneProps) {
   const [title, setTitle] = useState('')
@@ -42,11 +46,15 @@ export function Lane({
         e.preventDefault()
         setDragOver(true)
       }}
-      onDragLeave={() => setDragOver(false)}
+      onDragLeave={(e) => {
+        if (e.currentTarget.contains(e.relatedTarget as Node)) return
+        setDragOver(false)
+      }}
       onDrop={handleDrop}
     >
       <header className="lane-header">
-        <h2>{label}</h2>
+        <span className="lane-dot" style={{ background: dot }} />
+        <span className="lane-title">{label}</span>
         <span className="lane-count">{todos.length}</span>
       </header>
 
@@ -65,8 +73,14 @@ export function Lane({
 
       <div className="lane-cards">
         {todos.map((todo) => (
-          <Card key={todo.id} todo={todo} onDelete={onDelete} />
+          <Card
+            key={todo.id}
+            todo={todo}
+            onToggle={onToggle}
+            onDelete={onDelete}
+          />
         ))}
+        {todos.length === 0 && <div className="lane-empty">Drop tasks here</div>}
       </div>
     </section>
   )

@@ -40,21 +40,11 @@ export default function App() {
 
   return (
     <main className="app">
-      <header className="app-bar">
-        <h1>To-Do</h1>
-        <div className="app-bar-right">
-          <span className="muted email">{session.user.email}</span>
-          <button
-            type="button"
-            className="signout"
-            onClick={() => supabase.auth.signOut()}
-          >
-            Sign out
-          </button>
-        </div>
-      </header>
-
-      <Board userId={session.user.id} />
+      <Board
+        userId={session.user.id}
+        email={session.user.email}
+        onSignOut={() => supabase.auth.signOut()}
+      />
     </main>
   )
 }

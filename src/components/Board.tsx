@@ -3,7 +3,13 @@ import { supabase } from '../lib/supabase'
 import { LANES, type Status, type Todo } from '../types'
 import { Lane } from './Lane'
 
-export function Board({ userId }: { userId: string }) {
+type BoardProps = {
+  userId: string
+  email: string | undefined
+  onSignOut: () => void
+}
+
+export function Board({ userId, email, onSignOut }: BoardProps) {
   const [todos, setTodos] = useState<Todo[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -114,6 +120,15 @@ export function Board({ userId }: { userId: string }) {
     [todos, nextPosition],
   )
 
+  // Checkbox: mark a card done (move to Done), or send a done card back to
+  // Backlog. "done" is just a lane, so this reuses moveTodo.
+  const toggleDone = useCallback(
+    (todo: Todo) => {
+      moveTodo(todo.id, todo.status === 'done' ? 'backlog' : 'done')
+    },
+    [moveTodo],
+  )
+
   const deleteTodo = useCallback(async (id: string) => {
     setTodos((prev) => prev.filter((t) => t.id !== id))
     const { error: deleteError } = await supabase
@@ -123,8 +138,30 @@ export function Board({ userId }: { userId: string }) {
     if (deleteError) setError(deleteError.message)
   }, [])
 
+  const total = todos.length
+  const doneCount = todos.filter((t) => t.status === 'done').length
+  const pct = total ? Math.round((doneCount / total) * 100) : 0
+
   return (
-    <>
+    <div className="board-wrap">
+      <header className="board-head">
+        <div>
+          <h1 className="board-title">To-Do</h1>
+          <p className="board-sub">
+            {doneCount} of {total} tasks complete · {pct}% done
+          </p>
+        </div>
+        <div className="board-head-right">
+          <div className="progress" aria-hidden="true">
+            <div className="progress-fill" style={{ width: `${pct}%` }} />
+          </div>
+          {email && <span className="board-email">{email}</span>}
+          <button type="button" className="signout" onClick={onSignOut}>
+            Sign out
+          </button>
+        </div>
+      </header>
+
       {error && <p className="error">⚠ {error}</p>}
       {loading && !error && <p className="muted">Loading…</p>}
 
@@ -134,15 +171,17 @@ export function Board({ userId }: { userId: string }) {
             key={lane.status}
             status={lane.status}
             label={lane.label}
+            dot={lane.dot}
             todos={todos
               .filter((t) => t.status === lane.status)
               .sort((a, b) => a.position - b.position)}
             onAdd={addTodo}
             onMove={moveTodo}
+            onToggle={toggleDone}
             onDelete={deleteTodo}
           />
         ))}
       </div>
-    </>
+    </div>
   )
 }
