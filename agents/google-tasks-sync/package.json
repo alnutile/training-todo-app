@@ -4,6 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "description": "Per-user agent that syncs Google Tasks into the todos table.",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "start": "node --env-file-if-exists=.env --import tsx sync.ts",
     "sync": "node --env-file-if-exists=.env --import tsx sync.ts",

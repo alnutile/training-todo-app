@@ -117,10 +117,13 @@ Every push to `main` redeploys automatically.
 
 ## Google Tasks sync agent (Step 5)
 
-[`agents/`](agents/) is a **separate, server-side deployable** that pulls the
-target user's **Google Tasks** into the `todos` table via the Zapier SDK, so a
-task made on your phone shows up on the board. It's a per-user agent — it reads
-one Google Tasks connection and writes rows for one `SYNC_TARGET_USER_ID`.
+[`agents/google-tasks-sync/`](agents/google-tasks-sync/) is a **separate,
+server-side deployable** that pulls the target user's **Google Tasks** into the
+`todos` table via the Zapier SDK, so a task made on your phone shows up on the
+board. It's a per-user agent — it reads one Google Tasks connection and writes
+rows for one `SYNC_TARGET_USER_ID`. Each agent lives in its own folder under
+[`agents/`](agents/) (one folder = one Railway service); see
+[agents/README.md](agents/README.md) for the convention.
 
 **How it works**
 - Reads every task list + task (incl. completed) via the Zapier SDK
@@ -146,13 +149,16 @@ one Google Tasks connection and writes rows for one `SYNC_TARGET_USER_ID`.
 ### Run it manually (the demo)
 
 ```bash
-cd agents
+cd agents/google-tasks-sync
 cp .env.example .env      # fill in the real values (see below), .env is gitignored
 npm install
 npm start                 # reads Google Tasks, upserts, prints rows affected
 ```
 
-`agents/.env` for the demo:
+The Zapier CLI isn't a project dependency — run one-off setup commands
+(`login`, `create-client-credentials`) with `npx zapier-sdk …`.
+
+`agents/google-tasks-sync/.env` for the demo:
 
 | Var | Value |
 |---|---|
@@ -170,10 +176,11 @@ the `ZAPIER_CREDENTIALS_*` vars. Then reload the board — your Google Tasks app
 The agent is its own service, separate from the web app:
 
 1. In your Railway **project** → **New** → **GitHub Repo** → same repo.
-2. Open the new service → **Settings** → **Root Directory** = `agents`. It picks
-   up [`agents/railway.json`](agents/railway.json): build with Nixpacks, start
-   with `npm start`, **cron `0 * * * *`** (hourly), restart policy `NEVER` (a
-   cron job runs once and exits).
+2. Open the new service → **Settings** → **Root Directory** =
+   `agents/google-tasks-sync`. It picks up
+   [`agents/google-tasks-sync/railway.json`](agents/google-tasks-sync/railway.json):
+   build with Nixpacks, start with `npm start`, **cron `0 * * * *`** (hourly),
+   restart policy `NEVER` (a cron job runs once and exits).
 3. Set the service's **Variables** — the four above **plus** the Zapier server
    credentials (no CLI token on Railway):
    - `ZAPIER_CREDENTIALS_CLIENT_ID`, `ZAPIER_CREDENTIALS_CLIENT_SECRET` — create
