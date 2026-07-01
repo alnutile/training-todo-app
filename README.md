@@ -155,8 +155,13 @@ npm install
 npm start                 # reads Google Tasks, upserts, prints rows affected
 ```
 
-The Zapier CLI isn't a project dependency — run one-off setup commands
-(`login`, `create-client-credentials`) with `npx zapier-sdk …`.
+The Zapier CLI isn't a project dependency — run one-off setup commands via its
+scoped package (a bare `npx zapier-sdk` won't resolve):
+
+```bash
+npx -p @zapier/zapier-sdk-cli zapier-sdk login
+npx -p @zapier/zapier-sdk-cli zapier-sdk create-client-credentials "todo-sync-agent" --json
+```
 
 `agents/google-tasks-sync/.env` for the demo:
 
@@ -184,7 +189,7 @@ The agent is its own service, separate from the web app:
 3. Set the service's **Variables** — the four above **plus** the Zapier server
    credentials (no CLI token on Railway):
    - `ZAPIER_CREDENTIALS_CLIENT_ID`, `ZAPIER_CREDENTIALS_CLIENT_SECRET` — create
-     with `npx zapier-sdk create-client-credentials`.
+     with `npx -p @zapier/zapier-sdk-cli zapier-sdk create-client-credentials`.
 4. Deploy. It runs every hour, and you can hit **Deploy/Run** to trigger it
    on demand for the demo.
 
