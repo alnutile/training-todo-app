@@ -18,9 +18,22 @@ test.beforeAll(async () => {
   await mkdir(SHOT_DIR, { recursive: true })
 })
 
-/** Screenshot the whole page, including anything below the fold. */
+/**
+ * Screenshot the whole page, including anything below the fold.
+ *
+ * `animations: 'disabled'` matters more than it looks. The progress bar has a
+ * 0.35s width transition, so without it Playwright photographs the bar
+ * mid-grow — and a reviewer comparing two screenshots sees a bar that
+ * contradicts its own "25% done" label. That's a false positive on most runs,
+ * which is the fastest way to make a check like this worth ignoring. The flag
+ * finishes any in-flight transition and freezes it before the shutter.
+ */
 async function shoot(page: Page, name: string) {
-  await page.screenshot({ path: `${SHOT_DIR}/${name}.png`, fullPage: true })
+  await page.screenshot({
+    path: `${SHOT_DIR}/${name}.png`,
+    fullPage: true,
+    animations: 'disabled',
+  })
 }
 
 async function signIn(page: Page) {
