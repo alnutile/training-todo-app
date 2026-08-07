@@ -5,7 +5,10 @@ things *consistently* and *securely* — the stuff Lovable/Replit bake in for yo
 written down so you get it on your own terms. Drop this in the root of a new repo
 and start from it.
 
-Companion to the post **Vibe Coding With Confidence**.
+Companion to the post **Vibe Coding With Confidence**, and to [**Green Means
+Ship: CI/CD for Vibe Coders Who Are Sick of Things
+Breaking**](https://chat.dailyai.studio/posts/green-means-ship-cicd-with-confidence)
+for the testing and CI rules below.
 
 ## What we're building
 
