@@ -34,7 +34,11 @@ export default function App() {
   if (!session) {
     return (
       <main className="app app--auth">
-        <Auth />
+        {/* The card centres inside this wrapper; the footer stays a sibling of
+            the wrapper so it sits at the bottom instead of being centred too. */}
+        <div className="auth-center">
+          <Auth />
+        </div>
         <Footer />
       </main>
     )
