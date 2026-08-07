@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/alnutile/training-todo-app/actions/workflows/ci.yml/badge.svg)](https://github.com/alnutile/training-todo-app/actions/workflows/ci.yml)
 [![Database](https://github.com/alnutile/training-todo-app/actions/workflows/database.yml/badge.svg)](https://github.com/alnutile/training-todo-app/actions/workflows/database.yml)
+[![UI review](https://github.com/alnutile/training-todo-app/actions/workflows/ui-review.yml/badge.svg)](https://github.com/alnutile/training-todo-app/actions/workflows/ui-review.yml)
 
 A small to-do app, built step by step, as a companion to the **Vibe Coding With
 Confidence** posts and videos.
@@ -59,11 +60,24 @@ commit behind the build, because that's the honest answer.
 
 ## Tests and CI/CD
 
-Every push runs four jobs: the web app, the sync agent, the edge function, and a
-real browser. Nothing in them touches Zapier, Google, a Supabase project, or your
-wallet — the network is faked at every layer. Migrations get their own workflow,
-which boots a **throwaway Supabase inside the GitHub runner**, applies every
-migration from scratch, and proves Row Level Security actually isolates users.
+**134 tests across four runtimes, and not one of them costs money or needs an
+account.** Zapier, Google, and Supabase are all faked — at the *network* layer,
+so the real SDKs still run and build real requests; those requests just never
+leave the machine. Any call the tests haven't explicitly faked fails the run, so
+"these tests never hit Zapier" is enforced rather than promised.
+
+| Workflow | What it does |
+|---|---|
+| **[CI](.github/workflows/ci.yml)** | Web app, sync agent, edge function, and a real Chromium — all hermetic, no secrets |
+| **[Database](.github/workflows/database.yml)** | Boots a **throwaway Supabase in the runner**, applies every migration from scratch, and proves RLS isolates users — in SQL |
+| **[UI review](.github/workflows/ui-review.yml)** | Signs in **for real** against that Supabase, screenshots the app, and has **Claude look at the pictures** |
+| **[Deploy (production)](.github/workflows/deploy-production.yml)** | Re-runs the lot as a gate, then migrations → edge functions → app |
+| **[Deploy (staging)](.github/workflows/deploy-staging.yml)** | Run a branch's CI, then ship it for QA |
+
+The UI review exists because of a real bug this repo shipped: a footer that
+rendered in the middle of the login page while the browser test happily asserted
+it was visible and its link was correct. Both true. Both useless. Some things
+only a picture can catch — see [docs/ci-cd.md](docs/ci-cd.md).
 
 - **[docs/ci-cd.md](docs/ci-cd.md)** — how it all works, what each workflow does,
   which secrets to add, and how to run everything locally.
@@ -71,10 +85,11 @@ migration from scratch, and proves Row Level Security actually isolates users.
   in order, with the commands.
 
 ```bash
-npm test                                        # web
+npm test                                        # web unit + component
 (cd agents/google-tasks-sync && npm test)       # agent, with Zapier faked
 (cd supabase/functions && deno test)            # edge function
-npm run test:e2e                                # browser
+npm run test:e2e                                # browser, backend faked
+npm run ui-review:capture && npm run ui-review  # browser, backend real (needs Docker)
 ```
 
 ## Authentication (Step 3 — real accounts)
@@ -141,6 +156,7 @@ Add these in **GitHub → repo Settings → Secrets and variables → Actions**:
 | `SUPABASE_PROJECT_REF`  | Variable | The project ref — the subdomain of its API URL. Public, so not a secret.        |
 | `SUPABASE_ACCESS_TOKEN` | Secret   | [Account → Access Tokens](https://supabase.com/dashboard/account/tokens)        |
 | `SUPABASE_DB_PASSWORD`  | Secret   | Project → Settings → Database → the database password you set at project create |
+| `ANTHROPIC_API_KEY`     | Secret   | *(optional)* [console](https://platform.claude.com/settings/keys) — turns on the AI step of the UI review. Without it the job still captures and uploads screenshots. |
 
 Until they're set, the deploy jobs skip themselves with a note rather than
 failing. Full details in [docs/ci-cd.md](docs/ci-cd.md).
