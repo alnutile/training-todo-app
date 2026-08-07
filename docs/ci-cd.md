@@ -1,5 +1,10 @@
 # Green Means Ship — CI/CD and mocking
 
+> The written companion to this page: [**Green Means Ship: CI/CD for Vibe Coders
+> Who Are Sick of Things
+> Breaking**](https://chat.dailyai.studio/posts/green-means-ship-cicd-with-confidence).
+> That post is the *why*; this file is the *how*, wired to the code in this repo.
+
 The point of this setup: **you keep vibe coding, and the robots keep checking
 that yesterday's feature still works.**
 

@@ -1,5 +1,9 @@
 # Green Means Ship — run of show
 
+> Post: [**Green Means Ship: CI/CD for Vibe Coders Who Are Sick of Things
+> Breaking**](https://chat.dailyai.studio/posts/green-means-ship-cicd-with-confidence)
+> · Reference: [docs/ci-cd.md](ci-cd.md)
+
 A shot list for the video, in order, with the exact commands. Everything here
 works offline: no Zapier account, no Supabase project, no Railway service.
 

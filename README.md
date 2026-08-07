@@ -7,6 +7,9 @@
 A small to-do app, built step by step, as a companion to the **Vibe Coding With
 Confidence** posts and videos.
 
+📖 **Read the write-up:** [Green Means Ship: CI/CD for Vibe Coders Who Are Sick
+of Things Breaking](https://chat.dailyai.studio/posts/green-means-ship-cicd-with-confidence)
+
 A real board — four lanes, drag to move, per-user data behind a login, live
 across tabs — plus a server-side agent that syncs Google Tasks in through the
 Zapier SDK.
@@ -18,7 +21,7 @@ Zapier SDK.
 | 3 | Real accounts (email + password, magic links) |
 | 4 | Design pass |
 | 5 | Google Tasks sync agent (Zapier SDK) |
-| **6** | **CI/CD, mocking, and a disposable database — [docs/ci-cd.md](docs/ci-cd.md)** |
+| **6** | **CI/CD, mocking, and a disposable database — [the post](https://chat.dailyai.studio/posts/green-means-ship-cicd-with-confidence) · [docs/ci-cd.md](docs/ci-cd.md)** |
 
 ## Run it locally
 
