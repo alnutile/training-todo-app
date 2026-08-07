@@ -1,0 +1,113 @@
+name: UI review
+
+# Does it still *look* right?
+#
+# Every other suite in this repo fakes the backend, which makes it fast and free
+# — and structurally blind to a whole class of problem. A functional test can
+# assert the footer is visible and its link is correct while the footer sits in
+# the middle of the page. That's not a gap in the assertions; it's a gap in what
+# assertions can see.
+#
+# So this job does two things nothing else does:
+#
+#   1. Runs against a REAL Supabase — real Auth issues a real session, real RLS
+#      decides what comes back. It signs in with a password, like a person.
+#   2. Photographs the result and has Claude look at the pictures.
+#
+# Screenshots are always uploaded, so even with the AI step switched off you get
+# a set of images to flick through on the run page.
+
+on:
+  push:
+    branches-ignore: [main]
+    paths:
+      - 'src/**'
+      - 'e2e/**'
+      - 'scripts/ui-review/**'
+      - 'index.html'
+      - 'supabase/**'
+      - '.github/workflows/ui-review.yml'
+  pull_request:
+    branches: [main]
+  workflow_call: {}
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ui-review-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: Screenshots + AI review
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      # Pinned, like the other workflows — `latest` means someone else's release
+      # can break this overnight. See docs/ci-cd.md.
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.111.0
+
+      - name: Start a disposable Supabase
+        run: supabase start -x studio,imgproxy,inbucket,logflare,vector,supavisor,edge-runtime
+
+      - name: Apply every migration from scratch
+        run: supabase db reset
+
+      # Read the local stack's keys rather than hardcoding them, so a future CLI
+      # that changes its demo keys doesn't silently break the sign-in.
+      - name: Collect local Supabase credentials
+        run: |
+          supabase status -o json > /tmp/supabase-status.json
+          node -e '
+            const s = require("/tmp/supabase-status.json");
+            const out = [
+              ["VITE_SUPABASE_URL", s.API_URL],
+              ["VITE_SUPABASE_ANON_KEY", s.PUBLISHABLE_KEY || s.ANON_KEY],
+              ["SUPABASE_SERVICE_ROLE_KEY", s.SECRET_KEY || s.SERVICE_ROLE_KEY],
+            ];
+            for (const [k, v] of out) {
+              if (!v) { console.error("Missing " + k + " in supabase status"); process.exit(1); }
+              require("fs").appendFileSync(process.env.GITHUB_ENV, k + "=" + v + "\n");
+            }
+          '
+          # The service_role key is a local demo credential, identical on every
+          # machine — but mask it anyway so the habit is the right one.
+          echo "::add-mask::$(node -p 'const s=require("/tmp/supabase-status.json"); s.SECRET_KEY || s.SERVICE_ROLE_KEY')"
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Sign in for real and capture the screens
+        run: npx playwright test --config playwright.ui-review.config.ts
+
+      # Always — the pictures are useful whether or not the AI step runs, and
+      # especially when the capture itself failed.
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: ui-review-screenshots
+          path: ui-review/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Ask Claude whether it looks right
+        if: ${{ !cancelled() }}
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: node scripts/ui-review/review.mjs
+
+      - name: Stop Supabase
+        if: always()
+        run: supabase stop --no-backup

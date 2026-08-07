@@ -419,12 +419,22 @@ input:focus {
 }
 
 /* ---------- Auth screen ---------- */
+/* A column: the login card centres in the space above, the footer sits below it
+   at the bottom of the page. Centring the card and the footer *together* — which
+   is what a single centred flex row does — leaves the footer floating in dead
+   space beside the card. */
 .app--auth {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.auth-center {
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 100vh;
-  padding: 24px;
 }
 
 .auth {

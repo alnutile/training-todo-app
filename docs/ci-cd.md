@@ -111,6 +111,52 @@ Triggered when anything under `supabase/` changes. The runner:
 you're on a branch, the migration runs on a database that lives for two minutes
 inside GitHub's runner. Production migrations only ever run from `main`.
 
+### [`ui-review.yml`](../.github/workflows/ui-review.yml) — does it still *look* right?
+
+Every other suite here fakes the backend. That makes them fast and free, and
+**structurally blind to a whole class of problem.** A functional test can assert
+the footer is visible and its link is correct while the footer is sitting in the
+middle of the page. That isn't a gap in the assertions — it's a gap in what
+assertions can see.
+
+So this job does two things nothing else does:
+
+1. **It signs in for real.** Real Supabase Auth issues the session, real Postgres
+   stores the cards, real RLS decides what comes back — no `page.route`, no MSW.
+   This is the only suite that can catch a broken auth config or a bad policy.
+2. **It photographs the result and has Claude look at the pictures.**
+
+Each screenshot is paired with a written brief of what that screen is *supposed*
+to show ([`scripts/ui-review/lib.mjs`](../scripts/ui-review/lib.mjs)), and the
+model's answer is constrained to a JSON schema, so the verdict is machine-
+readable rather than prose you have to parse. Findings are graded
+`blocker` / `major` / `minor`; blockers and majors fail the build.
+
+**What keeps it honest:** the *decision* isn't the model's. `evaluate()` applies
+the severity gate, and it **fails closed** — an unparseable answer is a failure,
+never a pass. That logic is unit tested
+([`lib.test.mjs`](../scripts/ui-review/lib.test.mjs)), because the one thing you
+cannot test is whether Claude has good taste; what you can test is that a blocker
+stops the merge and that silence never reads as approval.
+
+The prompt also tells it what *not* to report — no colour opinions, no "this
+could be more modern", nothing it's guessing at. A reviewer that cries wolf gets
+ignored, and an ignored check is worse than no check.
+
+Run it locally (needs Docker + `supabase start`):
+
+```bash
+supabase start && supabase db reset
+export SUPABASE_SERVICE_ROLE_KEY=$(supabase status -o json | node -p "JSON.parse(require('fs').readFileSync(0)).SECRET_KEY")
+npm run ui-review:capture   # real login, screenshots into ui-review/screens/
+npm run ui-review           # ask Claude; skips cleanly with no ANTHROPIC_API_KEY
+```
+
+**To turn the AI step on**, add an `ANTHROPIC_API_KEY` repository secret. Without
+it the job still captures and uploads the screenshots — you just review them by
+eye instead. That's a deliberate fallback: the pictures are the durable value,
+the model is the convenience.
+
 ### [`deploy-production.yml`](../.github/workflows/deploy-production.yml) — main only
 
 Re-runs CI *and* the database checks, then deploys in dependency order:
