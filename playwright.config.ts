@@ -13,6 +13,10 @@ const BASE_URL = `http://127.0.0.1:${PORT}`
 
 export default defineConfig({
   testDir: './e2e',
+  // e2e/ui-review/ is a different suite with different needs — it runs against a
+  // real Supabase under playwright.ui-review.config.ts. Without this, `testDir`
+  // sweeps it up and those specs run here with no backend and no seeded account.
+  testIgnore: '**/ui-review/**',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
