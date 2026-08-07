@@ -64,10 +64,14 @@ jobs:
             echo "ready=true" >> "$GITHUB_OUTPUT"
           fi
 
+      # Pinned, not `latest`. `latest` means somebody else's release can break
+      # your deploy overnight — which is exactly what happened: 2.112.0 rejects
+      # the `+00:00` timestamps the API returns for project keys, so `link`
+      # died with a schema error. Bump this deliberately, when you can watch it.
       - uses: supabase/setup-cli@v1
         if: steps.check.outputs.ready == 'true'
         with:
-          version: latest
+          version: 2.111.0
 
       - name: Link the project
         if: steps.check.outputs.ready == 'true'
