@@ -198,6 +198,25 @@ docker exec -i supabase_db_training-todo-app psql -U postgres -d postgres \
   -v ON_ERROR_STOP=1 < supabase/tests/rls_test.sql
 ```
 
+### Pin your tools, or someone else's release day becomes yours
+
+The very first production deploy failed like this:
+
+```
+failed to get api keys: SchemaError(Expected a string matching the RegExp
+  ^...T...(?:Z)$  at [2]["inserted_at"])
+```
+
+Nothing in this repo had changed. The workflows asked for
+`supabase/setup-cli` at `version: latest`, and `latest` had moved to a release
+that rejects the `+00:00` timestamps the Supabase API actually returns. The
+identical command worked locally, on the previous version.
+
+Both workflows now pin an exact CLI version. Bump it on purpose, on a branch,
+when you're around to watch it — the same rule `package-lock.json` enforces for
+npm. **`latest` in a pipeline means your build depends on a stranger's release
+schedule.**
+
 ### One gotcha: your Node is probably newer than CI's
 
 CI installs the version in [`.nvmrc`](../.nvmrc) (Node 22, which ships npm 10).

@@ -40,9 +40,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Pinned so this job tests the same CLI you run locally. `latest` turns
+      # every upstream release into an unannounced change to your pipeline.
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.111.0
 
       # Only the services the checks need. Skipping Studio, storage, edge
       # runtime and friends keeps the boot to a couple of minutes.
