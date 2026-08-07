@@ -198,6 +198,33 @@ docker exec -i supabase_db_training-todo-app psql -U postgres -d postgres \
   -v ON_ERROR_STOP=1 < supabase/tests/rls_test.sql
 ```
 
+### One gotcha: your Node is probably newer than CI's
+
+CI installs the version in [`.nvmrc`](../.nvmrc) (Node 22, which ships npm 10).
+If your laptop is on a newer Node, you're running a newer npm — and the two
+disagree about lockfiles.
+
+This bit us on the very first CI run. `vitest`'s bundled Vite declares
+`esbuild ^0.27 || ^0.28`, and the lockfile had no entry for it. npm 11 shrugged
+and carried on; npm 10 refused to install at all:
+
+```
+npm error `npm ci` can only install packages when your package.json and
+npm error package-lock.json ... are in sync.
+npm error Missing: esbuild@0.28.1 from lock file
+```
+
+**Everything passed locally. CI caught it.** Which is the point.
+
+If you touch dependencies, regenerate the lock with the npm CI uses:
+
+```bash
+npx npm@10 install --package-lock-only
+rm -rf node_modules && npx npm@10 ci     # prove it, the way CI will
+```
+
+Or just push and let CI tell you — that's what it's for.
+
 ---
 
 ## Working this way with an AI
