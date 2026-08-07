@@ -10,11 +10,12 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { SyncConfig } from './config.ts'
 import type { Logger } from './log.ts'
 import { readAllGoogleTasks, type ZapierLike } from './google-tasks.ts'
+import { resolveTargetUserId, type AdminClient } from './target-user.ts'
 import { toSyncRows } from './todos.ts'
 
 export type SyncDeps = {
   zapier: ZapierLike
-  supabase: Pick<SupabaseClient, 'rpc'>
+  supabase: Pick<SupabaseClient, 'rpc'> & { auth: AdminClient }
   config: SyncConfig
   log: Logger
 }
@@ -31,6 +32,10 @@ export type SyncResult = {
 }
 
 export async function runSync({ zapier, supabase, config, log }: SyncDeps): Promise<SyncResult> {
+  // Resolve who we're writing for before spending time on Zapier — a typo in
+  // the target should fail in a second, not after reading every task list.
+  const targetUserId = await resolveTargetUserId(supabase.auth, config.target, log)
+
   const googleTasks = await readAllGoogleTasks(zapier, {
     connectionId: config.connectionId,
     log,
@@ -41,7 +46,7 @@ export async function runSync({ zapier, supabase, config, log }: SyncDeps): Prom
   log(
     `Read ${googleTasks.length} task(s); ${withTitles} with titles; upserting the ` +
       `latest ${rows.length}${config.syncLimit > 0 ? ` (SYNC_LIMIT=${config.syncLimit})` : ' (no cap)'} ` +
-      `for user ${config.targetUserId}.`,
+      `for user ${targetUserId}.`,
   )
 
   if (rows.length === 0) {
@@ -50,7 +55,7 @@ export async function runSync({ zapier, supabase, config, log }: SyncDeps): Prom
   }
 
   const { data, error } = await supabase.rpc('sync_external_todos', {
-    p_user_id: config.targetUserId,
+    p_user_id: targetUserId,
     p_tasks: rows,
   })
   if (error) throw new Error(`Upsert failed: ${error.message}`)

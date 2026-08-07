@@ -3,6 +3,7 @@ import type { Session } from '@supabase/supabase-js'
 import { supabase } from './lib/supabase'
 import { Auth } from './components/Auth'
 import { Board } from './components/Board'
+import { Footer } from './components/Footer'
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
@@ -34,6 +35,7 @@ export default function App() {
     return (
       <main className="app app--auth">
         <Auth />
+        <Footer />
       </main>
     )
   }
@@ -45,6 +47,7 @@ export default function App() {
         email={session.user.email}
         onSignOut={() => supabase.auth.signOut()}
       />
+      <Footer />
     </main>
   )
 }

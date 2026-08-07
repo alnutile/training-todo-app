@@ -16,6 +16,9 @@ export default defineConfig({
       // this host. The service_role key appears nowhere in this app.
       VITE_SUPABASE_URL: 'https://fake-project.supabase.co',
       VITE_SUPABASE_ANON_KEY: 'sb_publishable_test_key',
+      // Pinned so the footer renders the same sha every run. The real value is
+      // baked in at build time by vite.config.ts.
+      VITE_COMMIT_SHA: 'abcdef1234567890abcdef1234567890abcdef12',
     },
   },
 })

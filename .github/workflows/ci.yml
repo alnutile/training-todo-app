@@ -50,6 +50,9 @@ jobs:
           # the build only needs these to exist. Real values live in Railway.
           VITE_SUPABASE_URL: https://build-check.supabase.co
           VITE_SUPABASE_ANON_KEY: sb_publishable_build_check
+          # Baked into the bundle so the running app can show what it was built
+          # from (the footer). Railway sets RAILWAY_GIT_COMMIT_SHA itself.
+          VITE_COMMIT_SHA: ${{ github.sha }}
 
   agent:
     name: Sync agent (types, mocked-network tests)

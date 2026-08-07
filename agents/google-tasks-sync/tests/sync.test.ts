@@ -28,7 +28,7 @@ import { runSync } from '../src/run.ts'
 const config: SyncConfig = {
   supabaseUrl: FAKE_SUPABASE_URL,
   serviceRoleKey: FAKE_SERVICE_ROLE_KEY,
-  targetUserId: FAKE_USER_ID,
+  target: { kind: 'id', userId: FAKE_USER_ID },
   connectionId: FAKE_CONNECTION_ID,
   syncLimit: 50,
 }

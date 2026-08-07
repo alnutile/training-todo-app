@@ -12,6 +12,7 @@
     "preview": "vite preview",
     "start": "vite preview --host 0.0.0.0 --port ${PORT:-4173}",
     "typecheck": "tsc --noEmit",
+    "sync": "cd agents/google-tasks-sync && npm run sync",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
