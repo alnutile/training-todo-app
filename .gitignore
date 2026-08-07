@@ -9,6 +9,12 @@ dist
 .env.local
 .env.*.local
 
+# Test output
+playwright-report
+test-results
+blob-report
+coverage
+.env_local_secrets_only
 # Logs
 *.log
 npm-debug.log*

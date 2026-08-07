@@ -1,0 +1,74 @@
+name: Deploy (staging)
+
+# "This branch is green — put it somewhere a human can click on."
+#
+# Run it by hand: Actions → Deploy (staging) → Run workflow → pick your branch.
+# It runs the full CI suite for that branch first, then deploys it to the
+# staging environment for live QA.
+#
+# Staging is a separate GitHub Environment, so it holds its own secrets and its
+# own Supabase project. Nothing here can reach production.
+
+on:
+  workflow_dispatch:
+    inputs:
+      skip_tests:
+        description: 'Deploy without re-running CI (only if you just saw it go green)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  tests:
+    name: CI
+    if: ${{ !inputs.skip_tests }}
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    name: Railway (staging)
+    needs: [tests]
+    # `always()` + an explicit result check: run when CI passed, and also when
+    # CI was deliberately skipped — but never when CI actually failed.
+    if: ${{ always() && needs.tests.result != 'failure' && needs.tests.result != 'cancelled' }}
+    runs-on: ubuntu-latest
+    environment: staging
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      RAILWAY_SERVICE: ${{ vars.RAILWAY_SERVICE_WEB }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Is staging configured?
+        id: check
+        run: |
+          if [ -n "$RAILWAY_TOKEN" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Staging deploy skipped::Add a RAILWAY_TOKEN secret to the 'staging' environment (Settings → Environments → staging) to enable this."
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.check.outputs.ready == 'true'
+        with:
+          node-version-file: .nvmrc
+
+      - name: Deploy branch ${{ github.ref_name }} to staging
+        if: steps.check.outputs.ready == 'true'
+        run: |
+          npm install -g @railway/cli
+          if [ -n "$RAILWAY_SERVICE" ]; then
+            railway up --service "$RAILWAY_SERVICE" --detach
+          else
+            railway up --detach
+          fi
+
+      - name: Where to look
+        if: steps.check.outputs.ready == 'true'
+        run: echo "::notice title=Staging::Deployed ${{ github.ref_name }}. Open the staging URL and QA it before merging to main."

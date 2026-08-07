@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { supabase } from '../lib/supabase'
+import { validateCredentials, validateEmail } from '../lib/validation'
 
 type Mode = 'signin' | 'signup'
 
@@ -18,6 +19,13 @@ export function Auth() {
 
   async function handlePassword(e: FormEvent) {
     e.preventDefault()
+    // Catch the obvious problems here so a typo doesn't become a round trip.
+    const valid = validateCredentials(email, password)
+    if (!valid.ok) {
+      setError(valid.message)
+      setNotice(null)
+      return
+    }
     setBusy(true)
     setError(null)
     setNotice(null)
@@ -37,8 +45,10 @@ export function Auth() {
   }
 
   async function handleMagicLink() {
-    if (!email) {
-      setError('Enter your email first, then request a magic link.')
+    const valid = validateEmail(email)
+    if (!valid.ok) {
+      setError(valid.message)
+      setNotice(null)
       return
     }
     setBusy(true)
@@ -66,7 +76,9 @@ export function Auth() {
       {error && <p className="error">⚠ {error}</p>}
       {notice && <p className="notice">{notice}</p>}
 
-      <form className="auth-form" onSubmit={handlePassword}>
+      {/* noValidate: our own rules run instead of the browser's, so the message
+          is consistent everywhere and can be unit tested. */}
+      <form className="auth-form" onSubmit={handlePassword} noValidate>
         <label>
           Email
           <input

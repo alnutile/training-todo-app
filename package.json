@@ -10,7 +10,12 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "start": "vite preview --host 0.0.0.0 --port ${PORT:-4173}"
+    "start": "vite preview --host 0.0.0.0 --port ${PORT:-4173}",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install --with-deps chromium"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.2",
@@ -18,11 +23,18 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "@testing-library/jest-dom": "^7.0.0",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.3",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
+    "jsdom": "^30.0.1",
+    "msw": "^2.15.0",
     "typescript": "^5.9.3",
-    "vite": "^5.4.11"
+    "vite": "^5.4.11",
+    "vitest": "^4.1.10"
   },
   "allowScripts": {
     "esbuild@0.21.5": true

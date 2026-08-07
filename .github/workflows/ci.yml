@@ -1,0 +1,128 @@
+name: CI
+
+# The green check. Runs on every branch push and every pull request, and is
+# reused as a gate by the production deploy (see deploy-production.yml) — so
+# nothing reaches production without this passing first.
+#
+# Every job here is hermetic: no database, no Zapier account, no secrets. The
+# outside world is faked at the network layer (MSW / Playwright routes), which
+# is why this is safe to run on every push and why it costs nothing.
+
+on:
+  push:
+    branches-ignore: [main]
+  pull_request:
+    branches: [main]
+  workflow_call: {}
+
+permissions:
+  contents: read
+
+# A new push to the same branch cancels the run that's already going.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Web app (types, unit tests, build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Unit + component tests
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+        env:
+          # Public by design (anything VITE_ ships to the browser) and fake —
+          # the build only needs these to exist. Real values live in Railway.
+          VITE_SUPABASE_URL: https://build-check.supabase.co
+          VITE_SUPABASE_ANON_KEY: sb_publishable_build_check
+
+  agent:
+    name: Sync agent (types, mocked-network tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: agents/google-tasks-sync
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: agents/google-tasks-sync/.nvmrc
+          cache: npm
+          cache-dependency-path: agents/google-tasks-sync/package-lock.json
+
+      - run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      # The Zapier SDK runs for real here. Its HTTP calls are answered by MSW,
+      # and any request the tests didn't fake fails the run — so this job can
+      # never reach Zapier, never touch a real Google account, and never cost a
+      # task. See agents/google-tasks-sync/tests/mocks/zapier.ts.
+      - name: Tests (Zapier + Supabase faked at the network layer)
+        run: npm test
+
+  edge-functions:
+    name: Edge function (Deno)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: supabase/functions
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Type check
+        run: deno check todo-stats/index.ts
+
+      - name: Tests
+        run: deno test
+
+  e2e:
+    name: Browser end-to-end (Chromium)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      # Builds the app, serves the built files, and drives them in a real
+      # browser. Supabase is intercepted per-page (e2e/fake-supabase.ts), so
+      # this needs no project and no login.
+      - name: Run Playwright tests
+        run: npm run test:e2e
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7

@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { LANES, type Status, type Todo } from '../types'
+import {
+  applyRealtimeEvent,
+  laneTodos,
+  nextPosition,
+  progress,
+  toggledStatus,
+  withMove,
+  type RealtimeEvent,
+} from '../lib/board'
 import { Lane } from './Lane'
 
 type BoardProps = {
@@ -49,22 +58,9 @@ export function Board({ userId, email, onSignOut }: BoardProps) {
           filter: `user_id=eq.${userId}`,
         },
         (payload) => {
-          setTodos((prev) => {
-            if (payload.eventType === 'INSERT') {
-              const row = payload.new as Todo
-              if (prev.some((t) => t.id === row.id)) return prev
-              return [...prev, row]
-            }
-            if (payload.eventType === 'UPDATE') {
-              const row = payload.new as Todo
-              return prev.map((t) => (t.id === row.id ? row : t))
-            }
-            if (payload.eventType === 'DELETE') {
-              const oldRow = payload.old as Partial<Todo>
-              return prev.filter((t) => t.id !== oldRow.id)
-            }
-            return prev
-          })
+          // The reconciliation rules live in lib/board.ts so they can be tested
+          // without two browser tabs — see board.test.ts.
+          setTodos((prev) => applyRealtimeEvent(prev, payload as unknown as RealtimeEvent))
         },
       )
       .subscribe()
@@ -74,16 +70,6 @@ export function Board({ userId, email, onSignOut }: BoardProps) {
     }
   }, [userId])
 
-  // Next position = end of the target lane.
-  const nextPosition = useCallback(
-    (status: Status) => {
-      const inLane = todos.filter((t) => t.status === status)
-      if (inLane.length === 0) return 1
-      return Math.max(...inLane.map((t) => t.position)) + 1
-    },
-    [todos],
-  )
-
   const addTodo = useCallback(
     async (status: Status, title: string) => {
       const trimmed = title.trim()
@@ -91,7 +77,7 @@ export function Board({ userId, email, onSignOut }: BoardProps) {
       const { error: insertError } = await supabase.from('todos').insert({
         title: trimmed,
         status,
-        position: nextPosition(status),
+        position: nextPosition(todos, status),
         // user_id defaults to auth.uid() in the DB, but set it so the
         // optimistic realtime path and RLS check line up explicitly.
         user_id: userId,
@@ -99,32 +85,30 @@ export function Board({ userId, email, onSignOut }: BoardProps) {
       if (insertError) setError(insertError.message)
       // Realtime INSERT event adds it to state.
     },
-    [userId, nextPosition],
+    [userId, todos],
   )
 
   const moveTodo = useCallback(
     async (id: string, status: Status) => {
       const todo = todos.find((t) => t.id === id)
       if (!todo || todo.status === status) return
-      const position = nextPosition(status)
+      const position = nextPosition(todos, status)
       // Optimistic update; realtime reconciles to the persisted row.
-      setTodos((prev) =>
-        prev.map((t) => (t.id === id ? { ...t, status, position } : t)),
-      )
+      setTodos((prev) => withMove(prev, id, status))
       const { error: updateError } = await supabase
         .from('todos')
         .update({ status, position })
         .eq('id', id)
       if (updateError) setError(updateError.message)
     },
-    [todos, nextPosition],
+    [todos],
   )
 
   // Checkbox: mark a card done (move to Done), or send a done card back to
   // Backlog. "done" is just a lane, so this reuses moveTodo.
   const toggleDone = useCallback(
     (todo: Todo) => {
-      moveTodo(todo.id, todo.status === 'done' ? 'backlog' : 'done')
+      moveTodo(todo.id, toggledStatus(todo))
     },
     [moveTodo],
   )
@@ -138,9 +122,7 @@ export function Board({ userId, email, onSignOut }: BoardProps) {
     if (deleteError) setError(deleteError.message)
   }, [])
 
-  const total = todos.length
-  const doneCount = todos.filter((t) => t.status === 'done').length
-  const pct = total ? Math.round((doneCount / total) * 100) : 0
+  const { total, done: doneCount, pct } = progress(todos)
 
   return (
     <div className="board-wrap">
@@ -172,9 +154,7 @@ export function Board({ userId, email, onSignOut }: BoardProps) {
             status={lane.status}
             label={lane.label}
             dot={lane.dot}
-            todos={todos
-              .filter((t) => t.status === lane.status)
-              .sort((a, b) => a.position - b.position)}
+            todos={laneTodos(todos, lane.status)}
             onAdd={addTodo}
             onMove={moveTodo}
             onToggle={toggleDone}
