@@ -17,7 +17,16 @@ docker info >/dev/null && echo "docker ready"    # needed for the migration beat
 1. `npm run dev`, then **sign up in the app** with the address in
    `agents/google-tasks-sync/.env` (`SYNC_TARGET_EMAIL`). The agent looks the
    account up by email, so it has to exist. Sign-up is instant — no email step.
-2. `npx -p @zapier/zapier-sdk-cli zapier-sdk login` if you're not already logged in.
+2. Make sure `agents/google-tasks-sync/.env` has `ZAPIER_CREDENTIALS_CLIENT_ID`
+   and `ZAPIER_CREDENTIALS_CLIENT_SECRET`. **A `zapier-sdk login` token is not
+   enough** — it's approval-gated, so an unattended run is denied with
+   `can_execute ... denied by policy`. Client credentials aren't:
+
+   ```bash
+   npx -p @zapier/zapier-sdk-cli zapier-sdk create-client-credentials \
+     "todo-sync-agent" --allowed-scopes external --json
+   ```
+
 3. `npm run sync` once, off camera, to confirm it works. Then delete the cards it
    made if you want a clean board — it re-syncs the same tasks next run.
 

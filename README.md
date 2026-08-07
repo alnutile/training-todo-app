@@ -288,8 +288,23 @@ npx -p @zapier/zapier-sdk-cli zapier-sdk create-client-credentials "todo-sync-ag
 | `SYNC_TARGET_USER_ID` | *(optional)* the UUID directly; wins if both are set |
 | `GOOGLE_TASKS_CONNECTION_ID` | `024e9bf2-04cf-8cb5-b385-aad1f55376d2` |
 
-Locally the Zapier SDK uses the token from `zapier-sdk login`, so you don't need
-the `ZAPIER_CREDENTIALS_*` vars. Then reload the board — your Google Tasks appear
+**You need `ZAPIER_CREDENTIALS_*` even locally.** The token from `zapier-sdk
+login` is gated behind per-action approval, so any run without a human sitting
+there — a script, a cron job, this agent — is denied with:
+
+```
+ZapierApprovalError: Request denied by policy: can_execute on action/...
+```
+
+Client credentials are not approval-gated. Create them once:
+
+```bash
+npx -p @zapier/zapier-sdk-cli zapier-sdk create-client-credentials \
+  "todo-sync-agent" --allowed-scopes external --json
+```
+
+and put the id and secret in `.env` (the same pair goes in the Railway service).
+The secret is shown only at creation — save it then, or make a new one. Then reload the board — your Google Tasks appear
 (and thanks to realtime, they pop in live).
 
 ### Deploy as a second Railway service (hourly cron)

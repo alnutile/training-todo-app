@@ -18,6 +18,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { createZapierSdk } from '@zapier/zapier-sdk'
 import { loadConfig } from './src/config.ts'
+import { explainFailure } from './src/errors.ts'
 import { stdoutLog as log } from './src/log.ts'
 import { runSync } from './src/run.ts'
 import type { ZapierLike } from './src/google-tasks.ts'
@@ -50,5 +51,9 @@ try {
   await runSync({ zapier, supabase, config, log })
 } catch (err) {
   log(`Agent failed: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`)
+  // If it's a failure we recognise, say what to do about it — the stack trace
+  // above is never the useful part.
+  const help = explainFailure(err)
+  if (help) log(`\n${help}`)
   process.exitCode = 1
 }
