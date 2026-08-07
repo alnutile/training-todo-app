@@ -16,7 +16,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "test:e2e:install": "playwright install --with-deps chromium"
+    "test:e2e:install": "playwright install --with-deps chromium",
+    "ui-review:capture": "playwright test --config playwright.ui-review.config.ts",
+    "ui-review": "node scripts/ui-review/review.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.2",
@@ -24,6 +26,7 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@anthropic-ai/sdk": "^0.115.0",
     "@playwright/test": "^1.62.1",
     "@testing-library/jest-dom": "^7.0.0",
     "@testing-library/react": "^16.3.2",

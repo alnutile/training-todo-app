@@ -9,7 +9,7 @@ export default defineConfig({
     environment: 'jsdom',
     globals: false,
     setupFiles: ['./src/test/setup.ts'],
-    include: ['src/**/*.test.{ts,tsx}'],
+    include: ['src/**/*.test.{ts,tsx}', 'scripts/**/*.test.mjs'],
     env: {
       // Fake, and public by design — these are the VITE_ vars, which always
       // reach the browser. The tests never talk to a real project; MSW answers

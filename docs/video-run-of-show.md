@@ -269,6 +269,50 @@ no project, no login.
 
 ---
 
+## 8a. The one the other tests couldn't see
+
+This is the strongest beat in the video, and it's real — not staged.
+
+**Show:** the login screen, with the `deployed a405efa` footer floating in the
+middle-right of the page instead of sitting at the bottom.
+
+**Show the test that passed anyway:**
+
+```ts
+await expect(footer).toBeVisible()                            // true
+await expect(link).toHaveAttribute('href', /github\.com/)     // true
+```
+
+**Say:** the footer *is* visible. The link *is* right. Both assertions are
+correct. "In a ridiculous place" is not something a functional test can see —
+that's not a gap in my assertions, it's a gap in what assertions **are**.
+
+**The cause,** if you want to show it — `.app--auth` is a centred flex container,
+so the footer became a sibling of the login card and got centred beside it.
+
+**Show:** [`ui-review.yml`](../.github/workflows/ui-review.yml) and the artifact
+of screenshots on the run page.
+
+**Say:** so this job does the two things nothing else does. It signs in **for
+real** — real Supabase Auth, real session, real row-level security, no mocking
+at all — which is the only way to catch a broken auth config. And then it
+photographs the result and has Claude look at the pictures.
+
+**Show:** the failing check, and the report table naming the screen, the problem,
+and the evidence.
+
+**Then fix it** (move the footer outside the flex container, or `align-self`),
+push, and watch it go green.
+
+**Worth saying:** the *decision* isn't the AI's. The severity gate is ordinary
+code, it's unit tested, and it **fails closed** — an answer the script can't read
+is a failure, never a pass. That's the difference between using a model as a
+tool and trusting it as an authority.
+
+**Also worth saying:** the prompt spends as much space on what *not* to report —
+no colour opinions, no "could be more modern" — as on what to look for. A
+reviewer that cries wolf gets ignored, and an ignored check is worse than none.
+
 ## 9. Secrets and environments
 
 **Show:** Settings → Secrets and variables → Actions.
