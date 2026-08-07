@@ -98,6 +98,23 @@ test('deleting a card takes it off the board', async ({ page }) => {
   await expect(page.getByText('Scrap this')).toHaveCount(0)
 })
 
+test('the footer shows the deployed commit and links to it', async ({ page }) => {
+  await mockSupabase(page, [])
+  await page.goto('/')
+
+  const footer = page.locator('.site-footer')
+  await expect(footer).toBeVisible()
+
+  // The sha is baked in at build time, so we assert on the shape, not a value.
+  const link = footer.getByRole('link')
+  await expect(link).toHaveAttribute('href', /github\.com\/alnutile\/training-todo-app/)
+  await expect(link).toHaveText(/^[0-9a-f]{7}$|^dev$/)
+
+  // And it's there once you're signed in too, not just on the login screen.
+  await signIn(page)
+  await expect(page.locator('.site-footer')).toBeVisible()
+})
+
 test('signing out returns you to the login screen', async ({ page }) => {
   await mockSupabase(page, [{ title: 'Private task' }])
   await page.goto('/')

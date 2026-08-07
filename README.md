@@ -45,6 +45,18 @@ npm run test:e2e   # real Chrome, real build (needs: npx playwright install chro
 npm run typecheck
 ```
 
+## Which version am I looking at?
+
+The footer shows the commit the running build came from and links straight to it
+on GitHub. Push a change, wait for the deploy, refresh — the hash changes. That
+turns "did my change actually ship?" into something you read off the page instead
+of guess.
+
+The sha is baked in at build time by [`vite.config.ts`](vite.config.ts), which
+takes it from `VITE_COMMIT_SHA`, then Railway's `RAILWAY_GIT_COMMIT_SHA`, then
+GitHub's `GITHUB_SHA`, then `git rev-parse` — and says `dev` when there's no
+commit behind the build, because that's the honest answer.
+
 ## Tests and CI/CD
 
 Every push runs four jobs: the web app, the sync agent, the edge function, and a
@@ -196,7 +208,7 @@ Every push to `main` redeploys automatically.
 server-side deployable** that pulls the target user's **Google Tasks** into the
 `todos` table via the Zapier SDK, so a task made on your phone shows up on the
 board. It's a per-user agent — it reads one Google Tasks connection and writes
-rows for one `SYNC_TARGET_USER_ID`. Each agent lives in its own folder under
+rows for one target account. Each agent lives in its own folder under
 [`agents/`](agents/) (one folder = one Railway service); see
 [agents/README.md](agents/README.md) for the convention.
 
@@ -216,9 +228,9 @@ rows for one `SYNC_TARGET_USER_ID`. Each agent lives in its own folder under
 - The agent talks to Supabase with the **`service_role`** key
   (`SUPABASE_SERVICE_ROLE_KEY`) — server-only, never a `VITE_` var, never
   committed. `service_role` bypasses RLS, so the agent sets `user_id` explicitly
-  to `SYNC_TARGET_USER_ID` on every row.
+  to the target account on every row.
 - **Multi-user = one agent per person:** each person runs their own agent with
-  their own `SYNC_TARGET_USER_ID` and their own Google Tasks connection. There
+  their own target account and their own Google Tasks connection. There
   is no shared multi-tenant bot.
 
 **Tested without ever calling Zapier**
@@ -235,12 +247,28 @@ real service, spend a Zapier task, or touch your Google account.
 
 ### Run it manually (the demo)
 
+One command from the repo root:
+
+```bash
+npm run sync
+```
+
+It reads your Google Tasks, upserts them, and prints how many rows changed.
+Keep the board open in a browser while it runs — **realtime means the cards
+appear without a refresh.**
+
+First time, set it up:
+
 ```bash
 cd agents/google-tasks-sync
-cp .env.example .env      # fill in the real values (see below), .env is gitignored
+cp .env.example .env      # fill in the values below; .env is gitignored
 npm install
-npm start                 # reads Google Tasks, upserts, prints rows affected
 ```
+
+> **Why a CLI command and not a button in the app?** The agent holds the
+> `service_role` key, which bypasses RLS completely. A button in the browser
+> that triggers a `service_role` job is exactly what
+> [CLAUDE.md](CLAUDE.md) says not to build. It stays server-side.
 
 The Zapier CLI isn't a project dependency — run one-off setup commands via its
 scoped package (a bare `npx zapier-sdk` won't resolve):
@@ -256,8 +284,9 @@ npx -p @zapier/zapier-sdk-cli zapier-sdk create-client-credentials "todo-sync-ag
 |---|---|
 | `SUPABASE_URL` | `https://<your-project-ref>.supabase.co` |
 | `SUPABASE_SERVICE_ROLE_KEY` | Project → Settings → API → `service_role` (secret) |
-| `SYNC_TARGET_USER_ID` | your account's `auth.users` UUID |
-| `GOOGLE_TASKS_CONNECTION_ID` | `020d862a-636a-86a8-bfc3-14fe4795af8f` |
+| `SYNC_TARGET_EMAIL` | the address you sign in with — the agent looks up the UUID |
+| `SYNC_TARGET_USER_ID` | *(optional)* the UUID directly; wins if both are set |
+| `GOOGLE_TASKS_CONNECTION_ID` | `024e9bf2-04cf-8cb5-b385-aad1f55376d2` |
 
 Locally the Zapier SDK uses the token from `zapier-sdk login`, so you don't need
 the `ZAPIER_CREDENTIALS_*` vars. Then reload the board — your Google Tasks appear

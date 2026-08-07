@@ -27,12 +27,23 @@ export type FakeSupabase = {
 export type FakeSupabaseOptions = {
   /** Make the RPC fail, to prove the agent surfaces DB errors instead of exiting 0. */
   failWith?: { status: number; message: string }
+  /** Accounts the admin API should report, for SYNC_TARGET_EMAIL lookups. */
+  users?: Array<{ id: string; email: string }>
 }
 
 export function fakeSupabase(options: FakeSupabaseOptions = {}): FakeSupabase {
   const calls: RpcCall[] = []
 
   const handlers: RequestHandler[] = [
+    // The admin user list — service_role only, which is why this lives in the
+    // agent and not the browser.
+    http.get(`${FAKE_SUPABASE_URL}/auth/v1/admin/users`, () =>
+      HttpResponse.json({
+        users: options.users ?? [{ id: FAKE_USER_ID, email: 'you@example.com' }],
+        aud: 'authenticated',
+      }),
+    ),
+
     http.post(`${FAKE_SUPABASE_URL}/rest/v1/rpc/sync_external_todos`, async ({ request }) => {
       const body = (await request.json()) as RpcCall
       calls.push(body)

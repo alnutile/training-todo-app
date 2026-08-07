@@ -12,8 +12,14 @@ npx playwright install chromium
 docker info >/dev/null && echo "docker ready"    # needed for the migration beat
 ```
 
-Optional, for showing the app itself: `supabase start` then `npm run dev`. The
-committed `.env` already points at that local Supabase.
+**Before you hit record, if you want the live Google Tasks sync (section 7a):**
+
+1. `npm run dev`, then **sign up in the app** with the address in
+   `agents/google-tasks-sync/.env` (`SYNC_TARGET_EMAIL`). The agent looks the
+   account up by email, so it has to exist. Sign-up is instant — no email step.
+2. `npx -p @zapier/zapier-sdk-cli zapier-sdk login` if you're not already logged in.
+3. `npm run sync` once, off camera, to confirm it works. Then delete the cards it
+   made if you want a clean board — it re-syncs the same tasks next run.
 
 ---
 
@@ -198,6 +204,35 @@ on `main`, after everything is green.
 
 ---
 
+## 7a. Now watch the agent do it for real
+
+The counterpoint to everything above. All those tests faked Zapier — here's the
+same code hitting the real thing.
+
+**Set the shot:** browser with the board on one side, terminal on the other.
+
+```bash
+npm run sync
+```
+
+**Watch:** the terminal prints the lists it's reading, then how many rows it
+upserted — and the cards **appear on the board without a refresh**. Nobody
+touched the browser.
+
+**Say:** two things just happened. The agent read my actual Google Tasks through
+Zapier, server-side, with a key that never goes near the browser. And the board
+updated itself, because Supabase realtime is pushing changes over a websocket —
+which is the same thing that makes two tabs agree.
+
+**Say, because someone will ask:** why a terminal command and not a button in
+the app? Because the agent holds the `service_role` key, which bypasses row
+level security entirely. A button in the browser that fires off a `service_role`
+job is exactly the thing my own rules say never to build. It stays server-side.
+
+**Point out:** this run is the *only* thing all day that cost me a Zapier task.
+Every test run — every push, every PR — cost nothing, because the SDK was
+talking to a fake.
+
 ## 8. The browser one
 
 **Say:** unit tests check the pieces. This one checks it's still an app.
@@ -256,6 +291,18 @@ app, in that order.
 
 **Say:** and if any one of those had gone red, none of it would have deployed.
 That's the whole video. Green means ship.
+
+### The proof it actually shipped
+
+**Show:** the footer of the app — a short commit hash.
+
+**Do:** refresh after the deploy goes green. The hash changes. Click it: GitHub
+opens on the exact commit that's running.
+
+**Say:** this is the bit people skip. "It deployed" is usually somebody watching
+a green tick and *assuming*. This is the running app telling you which commit it
+is. If the hash didn't change, the deploy didn't land — and now you know that in
+one second instead of debugging a change that was never there.
 
 > Both deploy jobs will report **skipped** with a note until you add the
 > Supabase and Railway credentials — that's deliberate, so the pipeline is green

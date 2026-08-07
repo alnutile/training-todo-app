@@ -46,6 +46,43 @@ input:focus {
   border-radius: 10px;
 }
 
+/* Which commit is running. Quiet until you go looking for it. */
+.site-footer {
+  max-width: 1480px;
+  margin: 40px auto 0;
+  padding-top: 16px;
+  border-top: 1px solid rgba(26, 31, 46, 0.08);
+  font-size: 0.78rem;
+  color: #8a93a5;
+  text-align: right;
+}
+
+.site-footer-label {
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 0.68rem;
+}
+
+.site-footer-link {
+  color: #6b7488;
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+
+.site-footer-link code {
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+  font-size: 0.8rem;
+}
+
+.site-footer-link:hover {
+  color: var(--indigo-dark);
+  border-bottom-color: currentColor;
+}
+
+.site-footer-note {
+  color: #a8b0c0;
+}
+
 /* Inline validation message under a lane's "add a task" box. */
 .lane-error {
   margin: -2px 0 8px;
