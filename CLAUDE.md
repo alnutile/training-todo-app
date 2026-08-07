@@ -45,6 +45,35 @@ agent. Don't build it all at once.
   - `.env` is gitignored; ship a `.env.example` with placeholder keys only.
 - **HTTPS only** (Railway gives it to you — don't undo it).
 
+### Testing & CI (a feature isn't done until it's checked)
+
+- **Every feature arrives with its tests.** Same prompt, same commit — not "add
+  tests later". If I ask for a change and you don't add or update a test, say why.
+- **Never let a test call a real outside service.** Fake it at the *network*
+  layer (MSW in Node/jsdom, Playwright routes in the browser) so our real code
+  and the real SDK still run — we're testing our code, not theirs. Set
+  `onUnhandledRequest: 'error'` so an un-faked call fails the run instead of
+  quietly reaching the internet. This is a money and blast-radius rule as much
+  as a speed one.
+- **Build the fake from the real contract.** Watch what the SDK actually
+  requests; don't invent a response shape. A mock that returns something the
+  real API never returns is worse than no test.
+- **Keep pure logic pure.** Rules (validation, ordering, status mapping,
+  reconciliation) go in plain functions that take input and return output. Those
+  are the cheap tests, and they're where most of the value is.
+- **The pyramid:** lots of fast unit tests, some component tests, a handful of
+  end-to-end. Don't reach for a browser test when a function test would do.
+- **Migrations run against a real, disposable database in CI** — never against
+  production from a branch. Production migrations happen on `main` only.
+- **Security rules get tests too.** RLS isolation is checked in SQL on every
+  push, not by opening an incognito window and hoping.
+- **Red before green.** When you add a test for a fix, show it failing on the
+  old code first.
+- **CI must be green before anything deploys**, and deploy steps skip cleanly
+  (with a note) when their credentials aren't configured yet.
+
+Details and the workflow map: `docs/ci-cd.md`.
+
 ### Data model
 
 `todos` table, minimum:
@@ -109,6 +138,10 @@ agent. Don't build it all at once.
 ## Definition of done (check before calling a feature finished)
 
 - [ ] RLS verified: an incognito window / a second user **cannot** see my data.
+      (`supabase/tests/rls_test.sql` proves this on every push.)
 - [ ] No secrets in the client bundle or in git (`service_role` is server-only).
 - [ ] Works across two tabs (realtime sync).
+- [ ] Tests added or updated, and **CI is green** — including the migration run
+      against a throwaway database.
+- [ ] No test reaches a real outside service.
 - [ ] Deploys clean on Railway over HTTPS.

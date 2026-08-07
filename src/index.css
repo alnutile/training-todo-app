@@ -46,6 +46,13 @@ input:focus {
   border-radius: 10px;
 }
 
+/* Inline validation message under a lane's "add a task" box. */
+.lane-error {
+  margin: -2px 0 8px;
+  font-size: 0.8rem;
+  color: #b42318;
+}
+
 /* ---------- Board header ---------- */
 .board-wrap {
   max-width: 1480px;

@@ -1,3 +1,59 @@
-# Minimal Supabase CLI config. `project_id` is just a local label; CI links to
-# the real project with `supabase link --project-ref <ref>`.
+# Supabase config. `project_id` is just a local label; the CLI links to the real
+# project with `supabase link --project-ref <ref>`.
+#
+# The [auth] settings below are pushed to the linked project with:
+#
+#   supabase config push
+#
+# That's the point of having them here: the auth rules are in git and reviewable
+# in a pull request, instead of being a thing somebody clicked in a dashboard
+# once and nobody can remember.
 project_id = "training-todo-app"
+
+[auth]
+enabled = true
+
+# Where magic links and post-login redirects send people back to.
+site_url = "http://localhost:5173"
+
+# Every origin allowed as a redirect target. Add the Railway URL here (and any
+# custom domain) when the app is deployed — a redirect to an origin that isn't
+# on this list is rejected by Supabase.
+additional_redirect_urls = [
+  "http://localhost:5173",
+  "http://localhost:5173/**",
+]
+
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+
+# Step 2 used anonymous sign-ins to get the board working fast. Step 3 replaced
+# them with real accounts — see CLAUDE.md. Off, deliberately.
+enable_anonymous_sign_ins = false
+
+# Matches validatePassword() in src/lib/validation.ts, so the client-side check
+# and the server agree.
+minimum_password_length = 6
+
+# Keep the platform's stricter defaults. `config push` fills anything you don't
+# state here with the CLI's own defaults, which are looser than what a new
+# project ships with — so the safe settings have to be written down too.
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
+
+[auth.email]
+enable_signup = true
+
+# One email per minute per address, and 8-digit codes. The CLI defaults (1s, 6
+# digits) are fine on a laptop and too loose for anything reachable.
+max_frequency = "1m0s"
+otp_length = 8
+
+# No email-verification step: signing up returns a session immediately, which
+# keeps the demo short. Tighten this (or go invite-only) whenever you like —
+# it's a config change, not a code change.
+enable_confirmations = false
+
+# Changing your email still requires confirming from BOTH addresses.
+double_confirm_changes = true

@@ -1,9 +1,23 @@
 # Training To-Do App
 
-A small to-do app, built step by step. **Step 1 (current):** a static
-Vite + React + TypeScript to-do list that persists in the browser via
-`localStorage`. No backend, no database, no auth yet — those come in later steps
-(see `CLAUDE.md`).
+[![CI](https://github.com/alnutile/training-todo-app/actions/workflows/ci.yml/badge.svg)](https://github.com/alnutile/training-todo-app/actions/workflows/ci.yml)
+[![Database](https://github.com/alnutile/training-todo-app/actions/workflows/database.yml/badge.svg)](https://github.com/alnutile/training-todo-app/actions/workflows/database.yml)
+
+A small to-do app, built step by step, as a companion to the **Vibe Coding With
+Confidence** posts and videos.
+
+A real board — four lanes, drag to move, per-user data behind a login, live
+across tabs — plus a server-side agent that syncs Google Tasks in through the
+Zapier SDK.
+
+| Step | What landed |
+|---|---|
+| 1 | Static Vite + React + TypeScript board |
+| 2 | Supabase database, RLS, drag-to-move, realtime |
+| 3 | Real accounts (email + password, magic links) |
+| 4 | Design pass |
+| 5 | Google Tasks sync agent (Zapier SDK) |
+| **6** | **CI/CD, mocking, and a disposable database — [docs/ci-cd.md](docs/ci-cd.md)** |
 
 ## Run it locally
 
@@ -12,11 +26,43 @@ npm install
 npm run dev      # http://localhost:5173
 ```
 
+The app needs a Supabase to talk to. The quickest one is local — no cloud
+project, no keys to copy:
+
+```bash
+supabase start   # Postgres + Auth + Realtime in Docker
+npm run dev      # .env already points here
+supabase stop    # when you're done
+```
+
 Other scripts:
 
 ```bash
-npm run build    # type-check + production build into dist/
-npm start        # serve the built dist/ on $PORT (used by Railway)
+npm run build      # type-check + production build into dist/
+npm start          # serve the built dist/ on $PORT (used by Railway)
+npm test           # unit + component tests
+npm run test:e2e   # real Chrome, real build (needs: npx playwright install chromium)
+npm run typecheck
+```
+
+## Tests and CI/CD
+
+Every push runs four jobs: the web app, the sync agent, the edge function, and a
+real browser. Nothing in them touches Zapier, Google, a Supabase project, or your
+wallet — the network is faked at every layer. Migrations get their own workflow,
+which boots a **throwaway Supabase inside the GitHub runner**, applies every
+migration from scratch, and proves Row Level Security actually isolates users.
+
+- **[docs/ci-cd.md](docs/ci-cd.md)** — how it all works, what each workflow does,
+  which secrets to add, and how to run everything locally.
+- **[docs/video-run-of-show.md](docs/video-run-of-show.md)** — the walkthrough,
+  in order, with the commands.
+
+```bash
+npm test                                        # web
+(cd agents/google-tasks-sync && npm test)       # agent, with Zapier faked
+(cd supabase/functions && deno test)            # edge function
+npm run test:e2e                                # browser
 ```
 
 ## Authentication (Step 3 — real accounts)
@@ -25,50 +71,79 @@ The app gates the board behind a Supabase session. Logged-out visitors (incl.
 incognito) see the login screen; logged-in users see only their own todos.
 Sign-in options: **email + password** and **passwordless magic link**.
 
-### One-time Supabase dashboard setup
+### Auth settings live in `supabase/config.toml`
 
-These are auth settings (no API/migration for them) — set them once in the
-[`training-todo-app` dashboard](https://supabase.com/dashboard/project/torocnrxwdepeceouzpe):
+They're not dashboard clicks anybody has to remember — they're in git, reviewable
+in a pull request, and applied with:
 
-1. **Authentication → Sign In / Providers**
-   - **Email**: enabled. Turn **"Confirm email" OFF** (no verification step — see
-     note below). Magic links work automatically once Email is enabled.
-   - **"Allow anonymous sign-ins": OFF** (Step 2 used this; Step 3 removes it).
-2. **Authentication → URL Configuration**
-   - **Site URL**: your production URL, e.g. `https://<app>.up.railway.app`
-   - **Redirect URLs** — add BOTH so magic links + post-login redirects work in
-     dev and prod:
-     - `http://localhost:5173/**`
-     - `https://<app>.up.railway.app/**` (and any custom domain, e.g.
-       `https://todo.example.com/**`)
+```bash
+supabase config push
+```
+
+That covers: email sign-up on, **email confirmation off** (sign-up returns a
+session immediately), anonymous sign-ins off, the redirect URLs magic links are
+allowed to return to, and the password minimum that matches
+[`src/lib/validation.ts`](src/lib/validation.ts).
+
+> **Watch out:** `config push` fills in anything you *don't* state with the
+> CLI's own defaults, and some of those are looser than what a new project
+> ships with (it will happily turn off MFA enrolment and drop the email rate
+> limit to one per second). So the strict settings have to be written down too —
+> they are, and the command prints a diff before it applies. Read the diff.
+
+Running locally with `supabase start`? Email and magic links already work, and
+the mail lands in Mailpit at http://127.0.0.1:54324 instead of a real inbox.
+
+**Still a dashboard step:** once the app is deployed, add its URL to
+`site_url` / `additional_redirect_urls` in `config.toml` and push again —
+Supabase rejects a redirect to any origin not on that list.
 
 > **Note — email confirmation is off on purpose** for a simple demo: anyone can
-> register and is signed in immediately. You can tighten this later — turn
-> "Confirm email" back on, or go invite-only — without code changes.
+> register and is signed in immediately. You can tighten this later — set
+> `enable_confirmations = true`, or go invite-only — without code changes.
 
 ### Why both dev and prod redirect URLs?
 
 Magic links and the post-login redirect send the user back to
-`window.location.origin`. That origin **must** be in the Redirect URLs list or
-Supabase rejects the redirect. Listing both `localhost` and the Railway domain
-means the same build works in both places.
+`window.location.origin`. That origin **must** be in
+`additional_redirect_urls` or Supabase rejects the redirect. Listing both
+`localhost` and the Railway domain means the same build works in both places.
 
 ## Database & migrations
 
-The Supabase schema lives in [`supabase/migrations/`](supabase/migrations/) and
-is applied by a GitHub Actions workflow
-([`.github/workflows/supabase-migrations.yml`](.github/workflows/supabase-migrations.yml))
-on every push to `main` that touches a migration. `supabase db push` only runs
-versions the project hasn't recorded yet, so re-runs are safe.
+The Supabase schema lives in [`supabase/migrations/`](supabase/migrations/).
+
+- **On a branch or PR:** [`database.yml`](.github/workflows/database.yml) starts a
+  disposable Supabase in the runner, applies every migration from scratch, lints
+  the schema, and runs [`supabase/tests/rls_test.sql`](supabase/tests/rls_test.sql).
+  Production is never touched.
+- **On `main`:** [`deploy-production.yml`](.github/workflows/deploy-production.yml)
+  runs `supabase db push` against the real project, then deploys the edge
+  functions. `db push` only applies versions the project hasn't recorded yet, so
+  re-runs are safe.
 
 Add these in **GitHub → repo Settings → Secrets and variables → Actions**:
 
-| Secret                  | Where to get it                                                                 |
-|-------------------------|---------------------------------------------------------------------------------|
-| `SUPABASE_ACCESS_TOKEN` | [Account → Access Tokens](https://supabase.com/dashboard/account/tokens)        |
-| `SUPABASE_DB_PASSWORD`  | Project → Settings → Database → the database password you set at project create |
+| Name                    | Kind     | Where to get it                                                                 |
+|-------------------------|----------|---------------------------------------------------------------------------------|
+| `SUPABASE_PROJECT_REF`  | Variable | The project ref — the subdomain of its API URL. Public, so not a secret.        |
+| `SUPABASE_ACCESS_TOKEN` | Secret   | [Account → Access Tokens](https://supabase.com/dashboard/account/tokens)        |
+| `SUPABASE_DB_PASSWORD`  | Secret   | Project → Settings → Database → the database password you set at project create |
 
-The project ref (`torocnrxwdepeceouzpe`) is public and hardcoded in the workflow.
+Until they're set, the deploy jobs skip themselves with a note rather than
+failing. Full details in [docs/ci-cd.md](docs/ci-cd.md).
+
+## Edge functions
+
+[`supabase/functions/todo-stats/`](supabase/functions/todo-stats/) is a Deno
+edge function: send it your `Authorization: Bearer <jwt>` and it answers with
+your board summary. It calls the database **as you**, with the public anon key,
+so Row Level Security decides what it can see — it holds no `service_role` key
+and cannot read anyone else's board.
+
+```bash
+cd supabase/functions && deno test    # 13 tests, no deploy, no network
+```
 
 ## Frontend env vars (Railway + local)
 
@@ -76,7 +151,7 @@ Only `VITE_`-prefixed, **public** values:
 
 | Var                     | Value                                                  |
 |-------------------------|--------------------------------------------------------|
-| `VITE_SUPABASE_URL`     | `https://torocnrxwdepeceouzpe.supabase.co`             |
+| `VITE_SUPABASE_URL`     | `https://<your-project-ref>.supabase.co` (or `http://127.0.0.1:54321` locally) |
 | `VITE_SUPABASE_ANON_KEY`| the project's anon/publishable key (`sb_publishable_…`)|
 
 Never put the `service_role` key in a `VITE_` var or in git.
@@ -146,6 +221,18 @@ rows for one `SYNC_TARGET_USER_ID`. Each agent lives in its own folder under
   their own `SYNC_TARGET_USER_ID` and their own Google Tasks connection. There
   is no shared multi-tenant bot.
 
+**Tested without ever calling Zapier**
+
+```bash
+cd agents/google-tasks-sync && npm test
+```
+
+The suite runs the **real** Zapier SDK and the **real** Supabase client — their
+HTTP requests are answered by [MSW](https://mswjs.io) instead of the internet
+(see [tests/mocks/zapier.ts](agents/google-tasks-sync/tests/mocks/zapier.ts)).
+Any request the tests haven't faked fails the run, so it can't quietly reach a
+real service, spend a Zapier task, or touch your Google account.
+
 ### Run it manually (the demo)
 
 ```bash
@@ -167,7 +254,7 @@ npx -p @zapier/zapier-sdk-cli zapier-sdk create-client-credentials "todo-sync-ag
 
 | Var | Value |
 |---|---|
-| `SUPABASE_URL` | `https://torocnrxwdepeceouzpe.supabase.co` |
+| `SUPABASE_URL` | `https://<your-project-ref>.supabase.co` |
 | `SUPABASE_SERVICE_ROLE_KEY` | Project → Settings → API → `service_role` (secret) |
 | `SYNC_TARGET_USER_ID` | your account's `auth.users` UUID |
 | `GOOGLE_TASKS_CONNECTION_ID` | `020d862a-636a-86a8-bfc3-14fe4795af8f` |

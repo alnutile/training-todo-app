@@ -1,0 +1,70 @@
+name: Database
+
+# Migrations and RLS, checked against a Supabase that exists only for the life
+# of this job.
+#
+# This is the one place the tests are NOT faked — and that's the point. A
+# migration has to run against a real Postgres to mean anything. So the runner
+# starts a complete Supabase stack in Docker, applies every migration from
+# scratch, proves Row Level Security actually isolates users, and then throws
+# the whole thing away.
+#
+# Nothing here touches the production project. Production migrations run from
+# deploy-production.yml, on main only.
+
+on:
+  push:
+    branches-ignore: [main]
+    paths:
+      - 'supabase/**'
+      - '.github/workflows/database.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'supabase/**'
+      - '.github/workflows/database.yml'
+  workflow_call: {}
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: db-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  migrations:
+    name: Migrations + RLS (throwaway Supabase)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      # Only the services the checks need. Skipping Studio, storage, edge
+      # runtime and friends keeps the boot to a couple of minutes.
+      - name: Start a disposable Supabase
+        run: supabase start -x studio,imgproxy,inbucket,logflare,vector,supavisor,edge-runtime
+
+      # From an empty database, in order, every time. If a migration only works
+      # when applied on top of last month's state, this is where it shows up.
+      - name: Apply every migration from scratch
+        run: supabase db reset
+
+      - name: Check migrations for known problems
+        run: supabase db lint --level warning
+
+      # The security check from CLAUDE.md, as SQL: a second user cannot see,
+      # change, or delete my rows, and a logged-out visitor sees nothing.
+      - name: Prove Row Level Security holds
+        run: |
+          psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+            -v ON_ERROR_STOP=1 \
+            -f supabase/tests/rls_test.sql
+
+      - name: Stop Supabase
+        if: always()
+        run: supabase stop --no-backup

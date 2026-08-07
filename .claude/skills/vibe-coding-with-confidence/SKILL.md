@@ -40,6 +40,8 @@ not all at once. Start simple, stay safe, layer up.
    it** — don't guess quietly. Ask before deviating from a security rule.
 4. **Build in phases.** Each phase ships and is reachable before the next starts.
    See `references/build-phases.md`.
+5. **Ship tests with the feature, and never let a test call a real outside
+   service.** Fake it at the network layer. See `references/testing.md`.
 
 ## Default stack
 
@@ -85,6 +87,10 @@ Full reusable prompt templates for each phase are in
   Cloudflare proxy notes, and running an agent as a second cron service.
 - `references/agents.md` — the per-user Zapier SDK sync-agent pattern (its own
   folder, `service_role` server-side, one agent per user).
+- `references/testing.md` — keeping it working while you keep changing it: tests
+  ship with the feature, fake outside services at the *network* layer (never call
+  a real one), migrations verified against a throwaway database, RLS proved in
+  SQL, and the CI/CD shape that gates every deploy.
 
 ## Bootstrapping a new repo
 
@@ -101,4 +107,7 @@ the AI follows these opinions every turn:
 - [ ] **RLS verified** — an incognito window / a second user **cannot** see my data.
 - [ ] **No secrets in the client bundle or git** — `service_role` is server-only.
 - [ ] **Realtime works across two tabs.**
+- [ ] **Tests added or updated, and CI is green** — including migrations applied
+      to a throwaway database.
+- [ ] **No test reaches a real outside service.**
 - [ ] **Deploys clean over HTTPS.**

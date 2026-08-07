@@ -1,0 +1,13 @@
+{
+  "$schema": "https://deno.land/x/deno/cli/schemas/config-file.v1.json",
+  "lock": false,
+  "fmt": {
+    "semiColons": false,
+    "singleQuote": true,
+    "lineWidth": 100
+  },
+  "tasks": {
+    "test": "deno test",
+    "check": "deno check todo-stats/index.ts"
+  }
+}

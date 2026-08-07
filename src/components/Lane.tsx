@@ -1,5 +1,6 @@
 import { useState, type DragEvent, type FormEvent } from 'react'
 import type { Status, Todo } from '../types'
+import { validateTitle } from '../lib/validation'
 import { Card } from './Card'
 
 type LaneProps = {
@@ -25,9 +26,17 @@ export function Lane({
 }: LaneProps) {
   const [title, setTitle] = useState('')
   const [dragOver, setDragOver] = useState(false)
+  const [titleError, setTitleError] = useState<string | null>(null)
 
   function submit(e: FormEvent) {
     e.preventDefault()
+    // Check before we touch the database — the rules live in lib/validation.ts.
+    const result = validateTitle(title)
+    if (!result.ok) {
+      setTitleError(result.message)
+      return
+    }
+    setTitleError(null)
     onAdd(status, title)
     setTitle('')
   }
@@ -58,18 +67,27 @@ export function Lane({
         <span className="lane-count">{todos.length}</span>
       </header>
 
-      <form className="lane-add" onSubmit={submit}>
+      <form className="lane-add" onSubmit={submit} noValidate>
         <input
           type="text"
           value={title}
-          onChange={(e) => setTitle(e.target.value)}
+          onChange={(e) => {
+            setTitle(e.target.value)
+            if (titleError) setTitleError(null)
+          }}
           placeholder={`Add to ${label}…`}
           aria-label={`Add a task to ${label}`}
+          aria-invalid={titleError ? true : undefined}
         />
         <button type="submit" aria-label={`Add to ${label}`}>
           +
         </button>
       </form>
+      {titleError && (
+        <p className="lane-error" role="alert">
+          {titleError}
+        </p>
+      )}
 
       <div className="lane-cards">
         {todos.map((todo) => (

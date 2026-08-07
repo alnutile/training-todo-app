@@ -39,6 +39,26 @@ an agent. Don't build it all at once.
   - `.env` is gitignored; ship a `.env.example` with placeholders only.
 - **HTTPS only.**
 
+### Testing & CI (a feature isn't done until it's checked)
+
+- **Every feature arrives with its tests** — same prompt, same commit. If you
+  skip them, say why.
+- **Never let a test call a real outside service.** Fake it at the *network*
+  layer (MSW in Node/jsdom, route interception in the browser) so our real code
+  and the real SDK still run. Set `onUnhandledRequest: 'error'` so an un-faked
+  call fails the run instead of quietly reaching the internet.
+- **Build the fake from the real contract** — watch what the SDK actually
+  requests. Don't invent a response shape.
+- **Keep rules in pure functions** (validation, ordering, status mapping): input
+  in, output out, no I/O. Those are the cheap, high-value tests.
+- **Lots of unit tests, some component tests, a handful of end-to-end.**
+- **Migrations run against a real, disposable database in CI** — never against
+  production from a branch. Production migrations happen on the main branch only.
+- **Security rules get tests too** — RLS isolation checked in SQL on every push.
+- **Red before green:** when adding a test for a fix, show it failing first.
+- **Nothing deploys unless CI is green**, and deploy steps skip cleanly with a
+  note when their credentials aren't configured yet.
+
 ### Data model
 
 `{{TABLE}}` table, minimum:
@@ -98,4 +118,7 @@ an agent. Don't build it all at once.
 - [ ] RLS verified: an incognito window / a second user **cannot** see my data.
 - [ ] No secrets in the client bundle or in git (`service_role` is server-only).
 - [ ] Works across two tabs (realtime sync).
+- [ ] Tests added or updated, and **CI is green** — including migrations applied
+      to a throwaway database.
+- [ ] No test reaches a real outside service.
 - [ ] Deploys clean over HTTPS.

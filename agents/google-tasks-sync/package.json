@@ -10,7 +10,9 @@
   "scripts": {
     "start": "node --env-file-if-exists=.env --import tsx sync.ts",
     "sync": "node --env-file-if-exists=.env --import tsx sync.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.2",
@@ -19,6 +21,8 @@
   },
   "devDependencies": {
     "@types/node": "^26.1.0",
-    "typescript": "^5.9.3"
+    "msw": "^2.15.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
   }
 }
